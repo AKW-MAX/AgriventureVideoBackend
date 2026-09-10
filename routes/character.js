@@ -978,11 +978,11 @@ router.post(
       /*
        * PUBLIC_API_URL should be:
        *
-       * http://10.159.131.218:5001
+       * https://agriventurevideobackend.onrender.com
        *
        * NOT:
        *
-       * http://10.159.131.218:5001/api/video
+       * https://agriventurevideobackend.onrender.com/api/video
        */
 
       const configuredBaseUrl =
