@@ -35,10 +35,14 @@ const POSTERS_DIRECTORY = path.join(
   'posters'
 );
 
+// Make sure the posters directory exists
 if (!fs.existsSync(POSTERS_DIRECTORY)) {
-  fs.mkdirSync(POSTERS_DIRECTORY, {
-    recursive: true,
-  });
+  fs.mkdirSync(
+    POSTERS_DIRECTORY,
+    {
+      recursive: true,
+    }
+  );
 
   console.log(
     '📁 Created posters directory:',
@@ -47,119 +51,125 @@ if (!fs.existsSync(POSTERS_DIRECTORY)) {
 }
 
 // ======================================================
-// ENVIRONMENT
-// ======================================================
-
-const PORT = process.env.PORT || 5001;
-
-const PUBLIC_BASE_URL =
-  process.env.PUBLIC_BASE_URL ||
-  `http://localhost:${PORT}`;
-
-// ======================================================
-// STARTUP INFORMATION
+// DEBUG: ENVIRONMENT
 // ======================================================
 
 console.log('');
 console.log('==========================================');
-console.log('🌾 AGRIVENTURE VIDEO BACKEND STARTING');
+console.log('🌾 AGRIVENTURE BACKEND STARTING');
 console.log('==========================================');
 
-console.log('NODE_ENV:', process.env.NODE_ENV || '(not set)');
-console.log('PORT:', PORT);
-console.log('PUBLIC_BASE_URL:', PUBLIC_BASE_URL);
+console.log(
+  'NODE_ENV:',
+  process.env.NODE_ENV || '(not set)'
+);
 
-console.log('POSTERS_DIRECTORY:', POSTERS_DIRECTORY);
+console.log(
+  'PORT:',
+  process.env.PORT || 5001
+);
+
+console.log(
+  'PUBLIC_BASE_URL:',
+  process.env.PUBLIC_BASE_URL || '(NOT SET)'
+);
+
+console.log(
+  'POSTERS_DIRECTORY:',
+  POSTERS_DIRECTORY
+);
 
 console.log(
   'POSTERS_DIRECTORY EXISTS:',
   fs.existsSync(POSTERS_DIRECTORY)
 );
 
-console.log(
-  'SERVER FILE:',
-  __filename
-);
-
 console.log('==========================================');
 console.log('');
 
 // ======================================================
-// DEBUG ROUTER HELPER
+// DEBUG: POSTER ROUTES
 // ======================================================
 
-function printRouterRoutes(name, router, filePath) {
-  console.log('');
-  console.log('==========================================');
-  console.log(`🔎 ${name.toUpperCase()} ROUTER REGISTERED ROUTES`);
-  console.log('==========================================');
+console.log('');
+console.log('==========================================');
+console.log('🔎 POSTER ROUTER REGISTERED ROUTES');
+console.log('==========================================');
 
-  try {
-    console.log(
-      `📁 ${name} router file:`,
-      require.resolve(filePath)
-    );
-  } catch (error) {
-    console.log(
-      `⚠️ Could not resolve ${name} router file:`,
-      error.message
-    );
-  }
+console.log(
+  '📁 Poster router file:',
+  require.resolve('./routes/poster')
+);
 
-  if (!router || !router.stack) {
-    console.log(
-      `⚠️ Could not inspect ${name} router.`
-    );
+if (
+  posterRoutes &&
+  posterRoutes.stack
+) {
+  posterRoutes.stack.forEach(
+    (layer) => {
+      if (layer.route) {
+        const methods =
+          Object.keys(
+            layer.route.methods
+          )
+            .map(
+              (method) =>
+                method.toUpperCase()
+            )
+            .join(',');
 
-    console.log('==========================================');
-    return;
-  }
-
-  let routeCount = 0;
-
-  router.stack.forEach((layer) => {
-    if (layer.route) {
-      routeCount++;
-
-      const methods =
-        Object.keys(layer.route.methods)
-          .map((method) => method.toUpperCase())
-          .join(',');
-
-      console.log(
-        `${methods} ${layer.route.path}`
-      );
+        console.log(
+          `${methods} ${layer.route.path}`
+        );
+      }
     }
-  });
-
-  console.log(
-    `Total ${name} routes:`,
-    routeCount
   );
-
-  console.log('==========================================');
+} else {
+  console.log(
+    '⚠️ Could not inspect poster router.'
+  );
 }
 
-// ======================================================
-// PRINT ROUTER INFORMATION
-// ======================================================
-
-printRouterRoutes(
-  'Poster',
-  posterRoutes,
-  './routes/poster'
+console.log(
+  '=========================================='
 );
 
-printRouterRoutes(
-  'Character',
-  characterRoutes,
-  './routes/character'
-);
+// ======================================================
+// DEBUG: VIDEO ROUTES
+// ======================================================
 
-printRouterRoutes(
-  'Video',
-  videoRoutes,
-  './routes/video'
+console.log('');
+console.log('==========================================');
+console.log('🔎 VIDEO ROUTER REGISTERED ROUTES');
+console.log('==========================================');
+
+if (
+  videoRoutes &&
+  videoRoutes.stack
+) {
+  videoRoutes.stack.forEach(
+    (layer) => {
+      if (layer.route) {
+        const methods =
+          Object.keys(
+            layer.route.methods
+          )
+            .map(
+              (method) =>
+                method.toUpperCase()
+            )
+            .join(',');
+
+        console.log(
+          `${methods} ${layer.route.path}`
+        );
+      }
+    }
+  );
+}
+
+console.log(
+  '=========================================='
 );
 
 // ======================================================
@@ -186,18 +196,6 @@ app.use(
 );
 
 // ======================================================
-// REQUEST LOGGER
-// ======================================================
-
-app.use((req, res, next) => {
-  console.log(
-    `➡️ ${req.method} ${req.originalUrl}`
-  );
-
-  next();
-});
-
-// ======================================================
 // STATIC POSTER FILES
 // ======================================================
 
@@ -213,7 +211,9 @@ console.log(
 
 console.log(
   'Exists:',
-  fs.existsSync(POSTERS_DIRECTORY)
+  fs.existsSync(
+    POSTERS_DIRECTORY
+  )
 );
 
 app.use(
@@ -232,59 +232,20 @@ console.log(
   'Public route: /posters/<filename>.png'
 );
 
-console.log('==========================================');
-console.log('');
-
-// ======================================================
-// ROOT TEST
-// ======================================================
-
-app.get(
-  '/',
-  (req, res) => {
-    res.json({
-      success: true,
-
-      message:
-        'Agriventure Video Backend is running.',
-
-      server:
-        'Agriventure Video Backend',
-
-      version:
-        '1.0.0',
-
-      port:
-        PORT,
-
-      protocol:
-        req.protocol,
-
-      secure:
-        req.secure,
-
-      publicBaseUrl:
-        PUBLIC_BASE_URL,
-
-      routes: {
-        poster:
-          '/api/poster',
-
-        character:
-          '/api/character',
-
-        video:
-          '/api/video',
-
-        health:
-          '/api/health',
-      },
-    });
-  }
+console.log(
+  '=========================================='
 );
 
 // ======================================================
-// POSTER FILE DEBUG
+// POSTER FILE DEBUG ROUTE
+// ======================================================
+//
+// Example:
+//
+// GET /posters-test
+//
+// This lets us see exactly what files Render has.
+//
 // ======================================================
 
 app.get(
@@ -305,7 +266,7 @@ app.get(
           );
       }
 
-      return res.json({
+      res.json({
         success: true,
 
         directory:
@@ -319,7 +280,8 @@ app.get(
         files,
 
         publicBaseUrl:
-          PUBLIC_BASE_URL,
+          process.env.PUBLIC_BASE_URL ||
+          null,
       });
     } catch (error) {
       console.error(
@@ -327,7 +289,7 @@ app.get(
         error
       );
 
-      return res.status(500).json({
+      res.status(500).json({
         success: false,
 
         message:
@@ -339,6 +301,12 @@ app.get(
 
 // ======================================================
 // INDIVIDUAL POSTER FILE TEST
+// ======================================================
+//
+// Example:
+//
+// /poster-file-test/my-file.png
+//
 // ======================================================
 
 app.get(
@@ -363,17 +331,14 @@ app.get(
       console.log(
         '🖼️ POSTER FILE TEST'
       );
-
       console.log(
         'Filename:',
         filename
       );
-
       console.log(
         'Path:',
         filePath
       );
-
       console.log(
         'Exists:',
         exists
@@ -450,15 +415,11 @@ console.log(
 );
 
 console.log(
-  'Server test: GET /api/poster/server-test'
-);
-
-console.log(
   'Generate: POST /api/poster/generate'
 );
 
-console.log('==========================================');
-console.log('');
+console.log(
+  '==========================================');
 
 // ======================================================
 // CHARACTER API
@@ -479,39 +440,7 @@ console.log(
 );
 
 console.log(
-  'Test: GET /api/character/test'
-);
-
-console.log(
-  'Gemini test: GET /api/character/gemini-test'
-);
-
-console.log(
-  'Background removal: POST /api/character/remove-background'
-);
-
-console.log(
-  'Animation: POST /api/character/animate'
-);
-
-console.log(
-  'Animation analyze: POST /api/character/animate/analyze'
-);
-
-console.log(
-  'Animation validate: POST /api/character/animate/validate'
-);
-
-console.log(
-  'Animation generate: POST /api/character/animate/generate'
-);
-
-console.log(
-  'Animation render: POST /api/character/animate/render'
-);
-
-console.log('==========================================');
-console.log('');
+  '==========================================');
 
 // ======================================================
 // VIDEO API
@@ -532,61 +461,26 @@ console.log(
 );
 
 console.log(
-  'Video server test: GET /api/video/test-server'
-);
-
-console.log(
-  'Background test: GET /api/video/background/test'
-);
-
-console.log(
-  'Background photo: POST /api/video/background/photo'
-);
-
-console.log(
-  'Background generate: POST /api/video/background/generate'
-);
-
-console.log('==========================================');
-console.log('');
+  '==========================================');
 
 // ======================================================
-// CHARACTER SERVER TEST
-// ======================================================
-//
-// This route is intentionally outside characterRoutes.
-// It proves that this exact server.js is deployed.
-//
+// ROOT TEST
 // ======================================================
 
 app.get(
-  '/api/character/server-test',
+  '/',
   (req, res) => {
     res.json({
       success: true,
 
       message:
-        'Character API server mount is working.',
+        'Agriventure Video Backend is running.',
 
-      route:
-        '/api/character/server-test',
+      server:
+        'Agriventure Video Backend',
 
-      method:
-        'GET',
-
-      characterRouterLoaded:
-        !!characterRoutes,
-
-      characterRouterStack:
-        !!(
-          characterRoutes &&
-          characterRoutes.stack
-        ),
-
-      characterRouterFile:
-        require.resolve(
-          './routes/character'
-        ),
+      port:
+        process.env.PORT || 5001,
 
       protocol:
         req.protocol,
@@ -594,49 +488,49 @@ app.get(
       secure:
         req.secure,
 
-      timestamp:
-        new Date().toISOString(),
+      publicBaseUrl:
+        process.env.PUBLIC_BASE_URL ||
+        null,
     });
   }
 );
 
 // ======================================================
-// BACKGROUND REMOVAL SERVER TEST
-// ======================================================
-//
-// This does NOT process an image.
-// It only confirms that this server knows
-// the expected endpoint.
-//
-// Actual processing remains:
-//
-// POST /api/character/remove-background
-//
+// POSTER SERVER TEST
 // ======================================================
 
 app.get(
-  '/api/character/remove-background-test',
+  '/api/poster/server-test',
   (req, res) => {
     res.json({
       success: true,
 
       message:
-        'Background removal endpoint is available for POST requests.',
+        'Poster API server mount is working.',
 
       route:
-        '/api/character/remove-background',
+        '/api/poster/server-test',
 
-      methodExpected:
-        'POST',
+      method:
+        'GET',
 
-      router:
-        '/api/character',
+      protocol:
+        req.protocol,
 
-      handler:
-        'routes/character.js',
+      secure:
+        req.secure,
 
-      timestamp:
-        new Date().toISOString(),
+      postersDirectory:
+        POSTERS_DIRECTORY,
+
+      postersDirectoryExists:
+        fs.existsSync(
+          POSTERS_DIRECTORY
+        ),
+
+      publicBaseUrl:
+        process.env.PUBLIC_BASE_URL ||
+        null,
     });
   }
 );
@@ -665,20 +559,12 @@ app.get(
 
       secure:
         req.secure,
-
-      timestamp:
-        new Date().toISOString(),
     });
   }
 );
 
 // ======================================================
-// BACKGROUND PHOTO GET TEST
-// ======================================================
-//
-// Actual processing is POST.
-// This GET route only confirms the server is alive.
-//
+// BACKGROUND PHOTO TEST
 // ======================================================
 
 app.get(
@@ -721,17 +607,11 @@ app.get(
       timestamp:
         new Date().toISOString(),
 
-      serverFile:
-        __filename,
-
       protocol:
         req.protocol,
 
       secure:
         req.secure,
-
-      port:
-        PORT,
 
       postersDirectory:
         POSTERS_DIRECTORY,
@@ -742,96 +622,8 @@ app.get(
         ),
 
       publicBaseUrl:
-        PUBLIC_BASE_URL,
-
-      routes: {
-        poster:
-          '/api/poster',
-
-        character:
-          '/api/character',
-
-        video:
-          '/api/video',
-      },
-    });
-  }
-);
-
-// ======================================================
-// API ROUTES SUMMARY
-// ======================================================
-
-app.get(
-  '/api/routes',
-  (req, res) => {
-    res.json({
-      success: true,
-
-      message:
-        'Agriventure API routes',
-
-      routes: {
-        root:
-          'GET /',
-
-        health:
-          'GET /api/health',
-
-        posterTest:
-          'GET /api/poster/test',
-
-        posterServerTest:
-          'GET /api/poster/server-test',
-
-        posterGenerate:
-          'POST /api/poster/generate',
-
-        characterTest:
-          'GET /api/character/test',
-
-        characterServerTest:
-          'GET /api/character/server-test',
-
-        characterGeminiTest:
-          'GET /api/character/gemini-test',
-
-        characterRemoveBackground:
-          'POST /api/character/remove-background',
-
-        characterRemoveBackgroundTest:
-          'GET /api/character/remove-background-test',
-
-        characterAnimate:
-          'POST /api/character/animate',
-
-        characterAnalyze:
-          'POST /api/character/animate/analyze',
-
-        characterValidate:
-          'POST /api/character/animate/validate',
-
-        characterGenerate:
-          'POST /api/character/animate/generate',
-
-        characterRender:
-          'POST /api/character/animate/render',
-
-        videoServerTest:
-          'GET /api/video/test-server',
-
-        videoBackgroundTest:
-          'GET /api/video/background/test',
-
-        videoBackgroundPhoto:
-          'POST /api/video/background/photo',
-
-        videoBackgroundGenerate:
-          'POST /api/video/background/generate',
-
-        posterFiles:
-          'GET /posters/<filename>.png',
-      },
+        process.env.PUBLIC_BASE_URL ||
+        null,
     });
   }
 );
@@ -843,9 +635,17 @@ app.get(
 app.use(
   (req, res) => {
     console.log('');
-    console.log('==========================================');
-    console.log('❌ 404 ROUTE NOT FOUND');
-    console.log('==========================================');
+    console.log(
+      '=========================================='
+    );
+
+    console.log(
+      '❌ 404 ROUTE NOT FOUND'
+    );
+
+    console.log(
+      '=========================================='
+    );
 
     console.log(
       'Method:',
@@ -877,10 +677,13 @@ app.use(
       req.secure
     );
 
-    console.log('==========================================');
+    console.log(
+      '=========================================='
+    );
+
     console.log('');
 
-    return res.status(404).json({
+    res.status(404).json({
       success: false,
 
       message:
@@ -891,9 +694,6 @@ app.use(
 
       path:
         req.originalUrl,
-
-      hint:
-        'Check the HTTP method and API path.',
     });
   }
 );
@@ -910,9 +710,17 @@ app.use(
     next
   ) => {
     console.error('');
-    console.error('==========================================');
-    console.error('❌ SERVER ERROR');
-    console.error('==========================================');
+    console.error(
+      '=========================================='
+    );
+
+    console.error(
+      '❌ SERVER ERROR'
+    );
+
+    console.error(
+      '=========================================='
+    );
 
     console.error(
       'Message:',
@@ -924,14 +732,17 @@ app.use(
       err?.stack
     );
 
-    console.error('==========================================');
+    console.error(
+      '=========================================='
+    );
+
     console.error('');
 
     if (res.headersSent) {
       return next(err);
     }
 
-    return res.status(
+    res.status(
       err?.status || 500
     ).json({
       success: false,
@@ -951,150 +762,144 @@ app.use(
 // SERVER START
 // ======================================================
 
+const PORT =
+  process.env.PORT || 5001;
+
 app.listen(
   PORT,
   '0.0.0.0',
   () => {
     console.log('');
-    console.log('==========================================');
-    console.log('🌾 AGRIVENTURE VIDEO BACKEND');
-    console.log('==========================================');
+    console.log(
+      '=========================================='
+    );
+
+    console.log(
+      '🌾 AGRIVENTURE VIDEO BACKEND'
+    );
+
+    console.log(
+      '=========================================='
+    );
 
     console.log(
       `🚀 Server running on port: ${PORT}`
     );
 
-    console.log(
-      'Server file:',
-      __filename
-    );
+    console.log('');
 
     console.log(
       'PUBLIC_BASE_URL:',
-      PUBLIC_BASE_URL
+      process.env.PUBLIC_BASE_URL ||
+        '(NOT SET)'
     );
 
     console.log('');
-    console.log('==========================================');
-    console.log('🎨 POSTER API');
-    console.log('==========================================');
 
     console.log(
-      'GET  /api/poster/test'
+      'Poster directory:'
     );
 
     console.log(
-      'GET  /api/poster/server-test'
-    );
-
-    console.log(
-      'POST /api/poster/generate'
+      POSTERS_DIRECTORY
     );
 
     console.log('');
-    console.log('==========================================');
-    console.log('👨‍🌾 CHARACTER API');
-    console.log('==========================================');
 
     console.log(
-      'GET  /api/character/test'
+      'Posters directory exists:'
     );
 
     console.log(
-      'GET  /api/character/server-test'
-    );
-
-    console.log(
-      'GET  /api/character/remove-background-test'
-    );
-
-    console.log(
-      'GET  /api/character/gemini-test'
-    );
-
-    console.log(
-      'POST /api/character/remove-background'
-    );
-
-    console.log(
-      'POST /api/character/animate'
-    );
-
-    console.log(
-      'POST /api/character/animate/analyze'
-    );
-
-    console.log(
-      'POST /api/character/animate/validate'
-    );
-
-    console.log(
-      'POST /api/character/animate/generate'
-    );
-
-    console.log(
-      'POST /api/character/animate/render'
+      fs.existsSync(
+        POSTERS_DIRECTORY
+      )
     );
 
     console.log('');
-    console.log('==========================================');
-    console.log('🎬 VIDEO API');
-    console.log('==========================================');
 
     console.log(
-      'GET  /api/video/test-server'
+      '=========================================='
     );
 
     console.log(
-      'GET  /api/video/background/test'
+      '🎨 POSTER API'
     );
 
     console.log(
-      'GET  /api/video/background/photo'
+      '=========================================='
     );
 
     console.log(
-      'POST /api/video/background/photo'
+      `GET /api/poster/test`
     );
 
     console.log(
-      'POST /api/video/background/generate'
-    );
-
-    console.log('');
-    console.log('==========================================');
-    console.log('🖼️ POSTER FILES');
-    console.log('==========================================');
-
-    console.log(
-      'GET /posters/<filename>.png'
+      `GET /api/poster/server-test`
     );
 
     console.log(
-      'GET /posters-test'
-    );
-
-    console.log(
-      'GET /poster-file-test/<filename>'
+      `POST /api/poster/generate`
     );
 
     console.log('');
-    console.log('==========================================');
-    console.log('❤️ HEALTH');
-    console.log('==========================================');
 
     console.log(
-      'GET /api/health'
+      '=========================================='
     );
 
     console.log(
-      'GET /api/routes'
+      '🖼️ POSTER FILES'
+    );
+
+    console.log(
+      '=========================================='
+    );
+
+    console.log(
+      `GET /posters/<filename>.png`
+    );
+
+    console.log(
+      `GET /posters-test`
+    );
+
+    console.log(
+      `GET /poster-file-test/<filename>`
     );
 
     console.log('');
-    console.log('==========================================');
-    console.log('✅ SERVER READY');
-    console.log('==========================================');
+
+    console.log(
+      '=========================================='
+    );
+
+    console.log(
+      '❤️ HEALTH CHECK'
+    );
+
+    console.log(
+      '=========================================='
+    );
+
+    console.log(
+      `GET /api/health`
+    );
+
+    console.log('');
+
+    console.log(
+      '=========================================='
+    );
+
+    console.log(
+      '✅ SERVER READY'
+    );
+
+    console.log(
+      '=========================================='
+    );
+
     console.log('');
   }
 );
