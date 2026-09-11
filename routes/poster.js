@@ -1,4 +1,3 @@
-
 const express = require('express');
 const sharp = require('sharp');
 const fs = require('fs');
@@ -10,7 +9,6 @@ console.log('==========================================');
 console.log('🎨 POSTER ROUTER LOADED');
 console.log('Poster route file:', __filename);
 console.log('==========================================');
-
 
 // ======================================================
 // OUTPUT DIRECTORY
@@ -26,7 +24,6 @@ const OUTPUT_DIR = path.join(
 if (!fs.existsSync(OUTPUT_DIR)) {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 }
-
 
 // ======================================================
 // POSTER SIZES
@@ -54,7 +51,6 @@ const SIZES = {
   },
 };
 
-
 // ======================================================
 // AVAILABLE TEMPLATES
 // ======================================================
@@ -70,7 +66,6 @@ const TEMPLATES = new Set([
   'minimal',
 ]);
 
-
 // ======================================================
 // TEXT HELPERS
 // ======================================================
@@ -83,7 +78,6 @@ function cleanText(value) {
   return String(value).trim();
 }
 
-
 function escapeXml(value) {
   return cleanText(value)
     .replace(/&/g, '&amp;')
@@ -93,7 +87,6 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;');
 }
 
-
 function safeFileName(value) {
   return cleanText(value)
     .replace(/[^a-zA-Z0-9-_]/g, '-')
@@ -101,7 +94,6 @@ function safeFileName(value) {
     .replace(/^-|-$/g, '')
     .toLowerCase();
 }
-
 
 // ======================================================
 // COLOUR HELPERS
@@ -125,7 +117,7 @@ function normalizeColor(value) {
     );
   }
 
-  // Allow common CSS colour names
+  // Common CSS colour names
   const namedColors = {
     green: '#2E7D32',
     darkgreen: '#1B5E20',
@@ -151,7 +143,6 @@ function normalizeColor(value) {
   return '#2E7D32';
 }
 
-
 function hexToRgb(hex) {
   const c = normalizeColor(hex).slice(1);
 
@@ -162,13 +153,11 @@ function hexToRgb(hex) {
   };
 }
 
-
 function rgba(hex, alpha) {
   const c = hexToRgb(hex);
 
   return `rgba(${c.r},${c.g},${c.b},${alpha})`;
 }
-
 
 // ======================================================
 // TEXT WRAPPING
@@ -198,10 +187,8 @@ function wrapText(text, width, fontSize) {
   let line = '';
 
   for (const word of words) {
-
     // Break very long words
     if (word.length > maxChars) {
-
       if (line) {
         lines.push(line);
         line = '';
@@ -227,7 +214,6 @@ function wrapText(text, width, fontSize) {
     if (candidate.length <= maxChars) {
       line = candidate;
     } else {
-
       if (line) {
         lines.push(line);
       }
@@ -243,7 +229,6 @@ function wrapText(text, width, fontSize) {
   return lines;
 }
 
-
 function truncateLines(lines, maxLines) {
   if (lines.length <= maxLines) {
     return lines;
@@ -258,7 +243,6 @@ function truncateLines(lines, maxLines) {
   return result;
 }
 
-
 // ======================================================
 // GENERIC TEXT BLOCK
 // ======================================================
@@ -272,7 +256,6 @@ function textBlock(
   fill,
   options = {}
 ) {
-
   const {
     weight = '400',
     lineHeight = Math.round(fontSize * 1.35),
@@ -288,7 +271,8 @@ function textBlock(
   );
 
   return lines
-    .map((line, i) => `
+    .map(
+      (line, i) => `
       <text
         x="${x}"
         y="${y + i * lineHeight}"
@@ -301,10 +285,10 @@ function textBlock(
       >
         ${escapeXml(line)}
       </text>
-    `)
+    `
+    )
     .join('');
 }
-
 
 // ======================================================
 // LABEL + VALUE
@@ -319,7 +303,6 @@ function labelValue(
   colors,
   options = {}
 ) {
-
   const {
     labelSize = 17,
     valueSize = 19,
@@ -386,13 +369,11 @@ function labelValue(
   };
 }
 
-
 // ======================================================
 // BASE64 IMAGE CONVERTER
 // ======================================================
 
 function dataUriToBuffer(dataUri) {
-
   if (!dataUri) {
     return null;
   }
@@ -411,7 +392,6 @@ function dataUriToBuffer(dataUri) {
       'base64'
     );
   } catch (error) {
-
     console.log(
       '⚠️ Base64 conversion failed:',
       error.message
@@ -421,13 +401,11 @@ function dataUriToBuffer(dataUri) {
   }
 }
 
-
 // ======================================================
 // POSTER LAYOUT
 // ======================================================
 
 function layoutFor(size, template) {
-
   const {
     width,
     height,
@@ -514,7 +492,6 @@ function layoutFor(size, template) {
   };
 }
 
-
 // ======================================================
 // TEMPLATE COLOURS
 // ======================================================
@@ -523,188 +500,114 @@ function templateColors(
   template,
   theme
 ) {
-
   const light = {
-
     bg: '#F4F8F4',
-
     panel: '#FFFFFF',
-
     text: '#202520',
-
     muted: '#626862',
-
     accent: theme,
-
     accentSoft:
       rgba(theme, 0.10),
-
     border: '#DDE7DD',
-
     footer:
       rgba(theme, 0.12),
-
     white: '#FFFFFF',
   };
 
-
   if (template === 'boldProduct') {
-
     return {
       ...light,
-
       bg: theme,
-
       panel: '#FFFFFF',
-
       text: '#123016',
-
       muted: '#EAF5EA',
-
       accent: '#FFFFFF',
-
       accentSoft:
         'rgba(255,255,255,0.14)',
-
       border:
         'rgba(255,255,255,0.20)',
-
       footer:
         'rgba(0,0,0,0.20)',
-
       white: '#FFFFFF',
     };
   }
-
 
   if (template === 'premiumAgri') {
-
     return {
       ...light,
-
       bg: '#102B16',
-
       panel: '#173A1E',
-
       text: '#FFFFFF',
-
       muted: '#D7E8D9',
-
       accent: theme,
-
       accentSoft:
         rgba(theme, 0.16),
-
       border:
         rgba(theme, 0.45),
-
       footer: '#0B2010',
-
       white: '#FFFFFF',
     };
   }
 
-
   if (template === 'pestControl') {
-
     return {
       ...light,
-
       bg: '#FFF8ED',
-
       panel: '#FFFFFF',
-
       text: '#2C2418',
-
       muted: '#6F665A',
-
       accent: theme,
-
       accentSoft: '#FFF0D5',
-
       border: '#EAD9BA',
-
       footer: '#F6E5C8',
     };
   }
 
-
   if (template === 'promotion') {
-
     return {
       ...light,
-
       bg: '#FFFDF6',
-
       panel: '#FFFFFF',
-
       text: '#25251F',
-
       muted: '#6C6A5F',
-
       accent: theme,
-
       accentSoft: '#FFF1D2',
-
       border: '#E7DFC9',
-
       footer: '#F4EACF',
     };
   }
 
-
   if (template === 'socialMedia') {
-
     return {
       ...light,
-
       bg: '#F1F7F1',
-
       panel: '#FFFFFF',
-
       text: '#17301B',
-
       muted: '#5D6B60',
-
       accent: theme,
-
       accentSoft:
         rgba(theme, 0.11),
-
       border: '#D8E6D9',
-
       footer: '#E0EEE1',
     };
   }
 
-
   if (template === 'minimal') {
-
     return {
       ...light,
-
       bg: '#FFFFFF',
-
       panel: '#FFFFFF',
-
       text: '#171A17',
-
       muted: '#666B66',
-
       accent: '#202520',
-
       accentSoft: '#F1F3F1',
-
       border: '#E1E5E1',
-
       footer: '#F5F6F5',
     };
   }
 
-
   return light;
 }
-
 
 // ======================================================
 // BACKGROUND
@@ -717,7 +620,6 @@ function backgroundSvg(
   colors,
   theme
 ) {
-
   let svg = `
     <rect
       width="${width}"
@@ -726,9 +628,7 @@ function backgroundSvg(
     />
   `;
 
-
   if (template === 'boldProduct') {
-
     svg += `
       <circle
         cx="${width * 0.88}"
@@ -750,9 +650,7 @@ function backgroundSvg(
     `;
   }
 
-
   if (template === 'premiumAgri') {
-
     svg += `
       <rect
         x="24"
@@ -777,9 +675,7 @@ function backgroundSvg(
     `;
   }
 
-
   if (template === 'pestControl') {
-
     svg += `
       <rect
         x="0"
@@ -806,9 +702,7 @@ function backgroundSvg(
     `;
   }
 
-
   if (template === 'promotion') {
-
     svg += `
       <rect
         x="0"
@@ -830,9 +724,7 @@ function backgroundSvg(
     `;
   }
 
-
   if (template === 'productInfo') {
-
     svg += `
       <rect
         x="0"
@@ -854,9 +746,7 @@ function backgroundSvg(
     `;
   }
 
-
   if (template === 'socialMedia') {
-
     svg += `
       <rect
         x="0"
@@ -878,9 +768,7 @@ function backgroundSvg(
     `;
   }
 
-
   if (template === 'modernFarm') {
-
     svg += `
       <path
         d="
@@ -909,10 +797,8 @@ function backgroundSvg(
     `;
   }
 
-
   return svg;
 }
-
 
 // ======================================================
 // HEADER
@@ -927,18 +813,13 @@ function drawHeader(
   businessName,
   location
 ) {
-
   const x = layout.margin;
 
   const dark =
     template === 'boldProduct' ||
     template === 'premiumAgri';
 
-
-  // ====================================================
-  // BIGGER COMPANY NAME
-  // ====================================================
-
+  // Bigger company name
   const businessSize =
     height >= 1800
       ? 58
@@ -946,16 +827,13 @@ function drawHeader(
         ? 54
         : 50;
 
-
   let svg = '';
-
 
   // ====================================================
   // PRODUCT INFO
   // ====================================================
 
   if (template === 'productInfo') {
-
     svg += `
       <text
         x="${x}"
@@ -986,13 +864,11 @@ function drawHeader(
     return svg;
   }
 
-
   // ====================================================
   // PEST CONTROL
   // ====================================================
 
   if (template === 'pestControl') {
-
     svg += `
       <text
         x="${x}"
@@ -1023,9 +899,7 @@ function drawHeader(
       }
     );
 
-
     if (location) {
-
       svg += textBlock(
         location,
         x,
@@ -1043,7 +917,6 @@ function drawHeader(
     return svg;
   }
 
-
   // ====================================================
   // STANDARD TEMPLATES
   // ====================================================
@@ -1058,12 +931,10 @@ function drawHeader(
       ? '#DCEBDD'
       : colors.muted;
 
-
   const headerY =
     template === 'promotion'
       ? 125
       : layout.margin + businessSize;
-
 
   // ====================================================
   // COMPANY NAME
@@ -1087,13 +958,11 @@ function drawHeader(
     }
   );
 
-
   // ====================================================
   // LOCATION
   // ====================================================
 
   if (location) {
-
     svg += textBlock(
       location,
       x,
@@ -1109,10 +978,8 @@ function drawHeader(
     );
   }
 
-
   return svg;
 }
-
 
 // ======================================================
 // CONTENT
@@ -1127,7 +994,6 @@ function drawContent(
   fields,
   theme
 ) {
-
   const {
     productName,
     description,
@@ -1138,47 +1004,36 @@ function drawContent(
     promoText,
   } = fields;
 
-
   const dark =
     template === 'boldProduct' ||
     template === 'premiumAgri';
-
 
   const titleColor =
     dark
       ? '#FFFFFF'
       : colors.accent;
 
-
   const textColor =
     dark
       ? '#F2F8F2'
       : colors.text;
-
 
   const muted =
     dark
       ? '#DCEBDD'
       : colors.muted;
 
-
   const border =
     dark
       ? 'rgba(255,255,255,0.18)'
       : colors.border;
 
-
   const panel =
-    dark
-      ? colors.panel
-      : colors.panel;
-
+    colors.panel;
 
   const p = 24;
 
-
   let svg = '';
-
 
   const titleSize =
     height >= 1800
@@ -1187,16 +1042,13 @@ function drawContent(
         ? 46
         : 42;
 
-
   const detailSize =
     height >= 1800
       ? 18
       : 19;
 
-
   const detailWidth =
     layout.leftW - p * 2;
-
 
   // ====================================================
   // LEFT CONTENT PANEL
@@ -1215,7 +1067,6 @@ function drawContent(
     />
   `;
 
-
   // ====================================================
   // RIGHT IMAGE PANEL
   // ====================================================
@@ -1233,7 +1084,6 @@ function drawContent(
     />
   `;
 
-
   // ====================================================
   // PRODUCT TITLE
   // ====================================================
@@ -1247,7 +1097,6 @@ function drawContent(
       ),
       3
     );
-
 
   svg += titleLines
     .map(
@@ -1272,7 +1121,6 @@ function drawContent(
     )
     .join('');
 
-
   let y =
     layout.contentY +
     58 +
@@ -1281,13 +1129,11 @@ function drawContent(
       1.08 +
     26;
 
-
   // ====================================================
   // PRODUCT DETAILS
   // ====================================================
 
   const details = [
-
     [
       'DESCRIPTION',
       description,
@@ -1319,17 +1165,14 @@ function drawContent(
     ],
   ];
 
-
   for (const [
     label,
     value,
     maxLines,
   ] of details) {
-
     if (!cleanText(value)) {
       continue;
     }
-
 
     if (
       y >
@@ -1339,7 +1182,6 @@ function drawContent(
     ) {
       break;
     }
-
 
     const result =
       labelValue(
@@ -1363,19 +1205,16 @@ function drawContent(
         }
       );
 
-
     svg += result.svg;
 
     y += result.height;
   }
-
 
   // ====================================================
   // PRODUCT IMAGE CARD
   // ====================================================
 
   const imagePad = 28;
-
 
   svg += `
     <rect
@@ -1387,7 +1226,6 @@ function drawContent(
       fill="#FFFFFF"
     />
   `;
-
 
   svg += `
     <text
@@ -1403,13 +1241,11 @@ function drawContent(
     </text>
   `;
 
-
   // ====================================================
   // PROMOTION
   // ====================================================
 
   if (promoText) {
-
     const promoH =
       Math.min(
         105,
@@ -1419,13 +1255,11 @@ function drawContent(
         )
       );
 
-
     const promoY =
       layout.contentY +
       layout.contentH -
       promoH -
       22;
-
 
     svg += `
       <rect
@@ -1437,7 +1271,6 @@ function drawContent(
         fill="${theme}"
       />
     `;
-
 
     svg += textBlock(
       promoText,
@@ -1455,33 +1288,30 @@ function drawContent(
     );
   }
 
-
   return svg;
 }
-
 
 // ======================================================
 // TEST ROUTE
 // ======================================================
 
-router.get('/test', (req, res) => {
+router.get(
+  '/test',
+  (req, res) => {
+    res.status(200).json({
+      success: true,
 
-  res.status(200).json({
+      message:
+        'Poster API is connected correctly.',
 
-    success: true,
+      route:
+        '/api/poster/test',
 
-    message:
-      'Poster API is connected correctly.',
-
-    route:
-      '/api/poster/test',
-
-    method:
-      'GET',
-
-  });
-});
-
+      method:
+        'GET',
+    });
+  }
+);
 
 // ======================================================
 // GENERATE POSTER
@@ -1490,9 +1320,7 @@ router.get('/test', (req, res) => {
 router.post(
   '/generate',
   async (req, res) => {
-
     try {
-
       const {
         businessName,
         logo,
@@ -1515,7 +1343,6 @@ router.post(
         size,
       } = req.body || {};
 
-
       // ==================================================
       // NORMALIZE INPUT
       // ==================================================
@@ -1523,64 +1350,47 @@ router.post(
       const finalBusinessName =
         cleanText(businessName);
 
-
       const finalProductName =
         cleanText(productName);
-
 
       const finalThemeColor =
         normalizeColor(themeColor);
 
-
       const requestedTemplate =
         cleanText(template);
-
 
       const finalTemplate =
         TEMPLATES.has(requestedTemplate)
           ? requestedTemplate
           : 'modernFarm';
 
-
       const requestedSize =
         cleanText(size);
-
 
       const finalSize =
         SIZES[requestedSize]
           ? requestedSize
           : 'square';
 
-
       // ==================================================
       // VALIDATION
       // ==================================================
 
       if (!finalBusinessName) {
-
         return res.status(400).json({
-
           success: false,
-
           message:
             'Business name is required.',
-
         });
       }
-
 
       if (!finalProductName) {
-
         return res.status(400).json({
-
           success: false,
-
           message:
             'Product name is required.',
-
         });
       }
-
 
       // ==================================================
       // DIMENSIONS
@@ -1590,7 +1400,6 @@ router.post(
         width,
         height,
       } = SIZES[finalSize];
-
 
       // ==================================================
       // COLOUR + LAYOUT
@@ -1602,24 +1411,32 @@ router.post(
           finalThemeColor
         );
 
-
       const layout =
         layoutFor(
           finalSize,
           finalTemplate
         );
 
-
       // ==================================================
       // SVG START
       // ==================================================
+      //
+      // IMPORTANT:
+      // Do NOT put whitespace or an XML declaration
+      // before the <svg> tag.
+      //
+      // This prevents the libxml / Sharp error:
+      //
+      // "XML declaration allowed only at the start
+      // of the document"
+      //
+      // ==================================================
 
-     let svg = `<svg
-      width="${width}"
-      height="${height}"
-      viewBox="0 0 ${width} ${height}"
-      xmlns="http://www.w3.org/2000/svg">`;
-
+      let svg = `<svg
+width="${width}"
+height="${height}"
+viewBox="0 0 ${width} ${height}"
+xmlns="http://www.w3.org/2000/svg">`;
 
       // ==================================================
       // SVG DEFINITIONS
@@ -1646,7 +1463,6 @@ router.post(
 
       svg += '</defs>';
 
-
       // ==================================================
       // BACKGROUND
       // ==================================================
@@ -1658,7 +1474,6 @@ router.post(
         colors,
         finalThemeColor
       );
-
 
       // ==================================================
       // HEADER
@@ -1673,7 +1488,6 @@ router.post(
         finalBusinessName,
         cleanText(location)
       );
-
 
       // ==================================================
       // CONTENT
@@ -1710,14 +1524,12 @@ router.post(
         finalThemeColor
       );
 
-
       // ==================================================
       // FOOTER
       // ==================================================
 
       const footerY =
         layout.footerY;
-
 
       svg += `
         <rect
@@ -1729,32 +1541,25 @@ router.post(
         />
       `;
 
-
       // ==================================================
       // CONTACT DETAILS
       // ==================================================
 
       const contacts = [];
 
-
       if (cleanText(phone)) {
-
         contacts.push(
           `Tel: ${cleanText(phone)}`
         );
       }
 
-
       if (cleanText(email)) {
-
         contacts.push(
           `Email: ${cleanText(email)}`
         );
       }
 
-
       if (contacts.length) {
-
         svg += textBlock(
           contacts.join(
             '   •   '
@@ -1772,7 +1577,6 @@ router.post(
           }
         );
       }
-
 
       // ==================================================
       // FOOTER LABEL
@@ -1792,13 +1596,11 @@ router.post(
         </text>
       `;
 
-
       // ==================================================
       // CLOSE SVG
       // ==================================================
 
       svg += '</svg>';
-
 
       // ==================================================
       // CREATE IMAGE
@@ -1806,9 +1608,11 @@ router.post(
 
       let image =
         sharp(
-          Buffer.from(svg)
+          Buffer.from(
+            svg.trim(),
+            'utf8'
+          )
         ).png();
-
 
       // ==================================================
       // LOGO
@@ -1817,22 +1621,16 @@ router.post(
       const logoBuffer =
         dataUriToBuffer(logo);
 
-
       if (logoBuffer) {
-
         try {
-
           const logoBox =
             finalSize === 'story'
               ? 155
               : 125;
 
-
           const logoProcessed =
             await sharp(logoBuffer)
-
               .ensureAlpha()
-
               .resize(
                 logoBox,
                 logoBox,
@@ -1847,11 +1645,8 @@ router.post(
                   },
                 }
               )
-
               .png()
-
               .toBuffer();
-
 
           image =
             image.composite([
@@ -1867,17 +1662,13 @@ router.post(
                   logoBox,
               },
             ]);
-        }
-
-        catch (error) {
-
+        } catch (error) {
           console.log(
             '⚠️ Logo processing failed:',
             error.message
           );
         }
       }
-
 
       // ==================================================
       // PRODUCT IMAGE
@@ -1888,17 +1679,13 @@ router.post(
           productImage
         );
 
-
       if (productBuffer) {
-
         try {
-
           const cardW =
             Math.max(
               160,
               layout.rightW - 56
             );
-
 
           const cardH =
             Math.max(
@@ -1908,52 +1695,39 @@ router.post(
               ) - 12
             );
 
-
           const processed =
             await sharp(productBuffer)
-
               .ensureAlpha()
-
               .trim({
                 threshold: 22,
               })
-
               .flatten({
                 background: '#FFFFFF',
               })
-
               .resize(
                 cardW,
                 cardH,
                 {
                   fit: 'contain',
-
                   position: 'centre',
-
                   background: '#FFFFFF',
                 }
               )
-
               .png()
-
               .toBuffer();
-
 
           const metadata =
             await sharp(
               processed
             ).metadata();
 
-
           const actualWidth =
             metadata.width ||
             cardW;
 
-
           const actualHeight =
             metadata.height ||
             cardH;
-
 
           const left =
             Math.round(
@@ -1962,14 +1736,12 @@ router.post(
               (cardW - actualWidth) / 2
             );
 
-
           const top =
             Math.round(
               layout.contentY +
               28 +
               (cardH - actualHeight) / 2
             );
-
 
           image =
             image.composite([
@@ -1981,10 +1753,7 @@ router.post(
                 left,
               },
             ]);
-        }
-
-        catch (error) {
-
+        } catch (error) {
           console.log(
             '⚠️ Product image processing failed:',
             error.message
@@ -1992,14 +1761,12 @@ router.post(
         }
       }
 
-
       // ==================================================
       // FILE NAME
       // ==================================================
 
       const timestamp =
         Date.now();
-
 
       const filename =
         `${
@@ -2012,53 +1779,82 @@ router.post(
           ) || 'product'
         }-${timestamp}.png`;
 
-
       const outputPath =
         path.join(
           OUTPUT_DIR,
           filename
         );
 
-
       // ==================================================
       // SAVE
       // ==================================================
 
       await image
-
         .resize(
           width,
           height
         )
-
         .png({
           compressionLevel: 9,
           quality: 100,
         })
-
         .toFile(
           outputPath
         );
 
-
       // ==================================================
       // PUBLIC URL
       // ==================================================
+      //
+      // IMPORTANT:
+      //
+      // Add this to Render:
+      //
+      // PUBLIC_BASE_URL=https://agriventurevediobackend.onrender.com
+      //
+      // This prevents Android from receiving an HTTP URL.
+      //
+      // ==================================================
 
-      const baseUrl =
-        `${req.protocol}://${req.get('host')}`;
+      const configuredBaseUrl =
+        cleanText(
+          process.env.PUBLIC_BASE_URL
+        );
 
+      let baseUrl;
+
+      if (configuredBaseUrl) {
+        baseUrl =
+          configuredBaseUrl.replace(
+            /\/+$/,
+            ''
+          );
+      } else if (
+        process.env.NODE_ENV === 'production'
+      ) {
+        baseUrl =
+          'https://agriventurevediobackend.onrender.com';
+      } else {
+        baseUrl =
+          `${req.protocol}://${req.get('host')}`;
+      }
 
       const posterUrl =
         `${baseUrl}/posters/${filename}`;
-
 
       // ==================================================
       // LOGGING
       // ==================================================
 
+      console.log('');
+      console.log(
+        '=========================================='
+      );
       console.log(
         '✅ POSTER GENERATED SUCCESSFULLY'
+      );
+      console.log(
+        '=========================================='
       );
 
       console.log(
@@ -2067,13 +1863,28 @@ router.post(
       );
 
       console.log(
-        '🌐 URL:',
+        '🌐 PUBLIC_BASE_URL:',
+        process.env.PUBLIC_BASE_URL || '(not set)'
+      );
+
+      console.log(
+        '🌐 Base URL:',
+        baseUrl
+      );
+
+      console.log(
+        '🖼️ Poster URL:',
         posterUrl
       );
 
       console.log(
         '🏢 Business:',
         finalBusinessName
+      );
+
+      console.log(
+        '📦 Product:',
+        finalProductName
       );
 
       console.log(
@@ -2091,13 +1902,16 @@ router.post(
         finalTemplate
       );
 
+      console.log(
+        '=========================================='
+      );
+      console.log('');
 
       // ==================================================
       // RESPONSE
       // ==================================================
 
       return res.json({
-
         success: true,
 
         message:
@@ -2119,21 +1933,14 @@ router.post(
 
         themeColor:
           finalThemeColor,
-
       });
-
-    }
-
-    catch (error) {
-
+    } catch (error) {
       console.error(
         '❌ POSTER GENERATION ERROR:',
         error
       );
 
-
       return res.status(500).json({
-
         success: false,
 
         message:
@@ -2147,7 +1954,6 @@ router.post(
     }
   }
 );
-
 
 // ======================================================
 // EXPORT

@@ -11,13 +11,24 @@ const posterRoutes = require('./routes/poster');
 const characterRoutes = require('./routes/character');
 const videoRoutes = require('./routes/video');
 
-
 // ======================================================
 // APP
 // ======================================================
 
 const app = express();
 
+// ======================================================
+// IMPORTANT FOR RENDER / HTTPS
+// ======================================================
+//
+// Render sits behind a reverse proxy.
+//
+// This allows Express to correctly understand that
+// the original request was HTTPS.
+//
+// ======================================================
+
+app.set('trust proxy', 1);
 
 // ======================================================
 // DEBUG: POSTER ROUTES
@@ -55,7 +66,6 @@ if (posterRoutes && posterRoutes.stack) {
 
 console.log('==========================================');
 
-
 // ======================================================
 // DEBUG: VIDEO ROUTES
 // ======================================================
@@ -83,21 +93,15 @@ if (videoRoutes && videoRoutes.stack) {
 
 console.log('==========================================');
 
-
 // ======================================================
 // CORS
 // ======================================================
 
 app.use(cors());
 
-
 // ======================================================
 // BODY PARSING
 // ======================================================
-//
-// Large limits are required because the mobile app can
-// send Base64 images.
-//
 
 app.use(
   express.json({
@@ -112,19 +116,9 @@ app.use(
   })
 );
 
-
 // ======================================================
 // STATIC POSTER FILES
 // ======================================================
-//
-// Generated posters are stored in:
-//
-// public/posters
-//
-// They can then be accessed through:
-//
-// http://YOUR-IP:5001/posters/file.png
-//
 
 const POSTERS_DIRECTORY = path.join(
   __dirname,
@@ -134,23 +128,16 @@ const POSTERS_DIRECTORY = path.join(
 
 app.use(
   '/posters',
-  express.static(
-    POSTERS_DIRECTORY
-  )
+  express.static(POSTERS_DIRECTORY)
 );
 
 console.log('');
 console.log('🖼️ Poster files directory:');
-console.log(
-  POSTERS_DIRECTORY
-);
+console.log(POSTERS_DIRECTORY);
 
 console.log('');
-console.log('🌐 Poster URL:');
-console.log(
-  '/posters/<filename>.png'
-);
-
+console.log('🌐 Poster route:');
+console.log('/posters/<filename>.png');
 
 // ======================================================
 // POSTER API
@@ -165,17 +152,10 @@ console.log('');
 console.log('==========================================');
 console.log('🎨 POSTER API');
 console.log('==========================================');
-console.log(
-  'Mounted at: /api/poster'
-);
-console.log(
-  'Test:       GET /api/poster/test'
-);
-console.log(
-  'Generate:   POST /api/poster/generate'
-);
+console.log('Mounted at: /api/poster');
+console.log('Test:       GET /api/poster/test');
+console.log('Generate:   POST /api/poster/generate');
 console.log('==========================================');
-
 
 // ======================================================
 // CHARACTER API
@@ -190,11 +170,8 @@ console.log('');
 console.log('==========================================');
 console.log('👨‍🌾 CHARACTER API');
 console.log('==========================================');
-console.log(
-  'Mounted at: /api/character'
-);
+console.log('Mounted at: /api/character');
 console.log('==========================================');
-
 
 // ======================================================
 // VIDEO API
@@ -209,11 +186,8 @@ console.log('');
 console.log('==========================================');
 console.log('🎬 VIDEO API');
 console.log('==========================================');
-console.log(
-  'Mounted at: /api/video'
-);
+console.log('Mounted at: /api/video');
 console.log('==========================================');
-
 
 // ======================================================
 // ROOT TEST
@@ -226,32 +200,19 @@ app.get(
       success: true,
       message:
         'Agriventure Video Backend is running.',
-      server: 'Agriventure Video Backend',
+      server:
+        'Agriventure Video Backend',
       port:
         process.env.PORT || 5001,
+      protocol:
+        req.protocol,
     });
   }
 );
 
-
 // ======================================================
-// POSTER TEST
+// POSTER SERVER TEST
 // ======================================================
-//
-// This is an additional server-level test.
-//
-// IMPORTANT:
-// The actual poster router should ALSO have:
-//
-// router.get('/test', ...)
-//
-// Therefore both of these should work:
-//
-// GET /api/poster/test
-//
-// The request should normally be handled by
-// routes/poster.js before reaching this fallback.
-//
 
 app.get(
   '/api/poster/server-test',
@@ -263,10 +224,11 @@ app.get(
       route:
         '/api/poster/server-test',
       method: 'GET',
+      protocol: req.protocol,
+      secure: req.secure,
     });
   }
 );
-
 
 // ======================================================
 // VIDEO SERVER TEST
@@ -282,18 +244,25 @@ app.get(
       route:
         '/api/video/test-server',
       method: 'GET',
+      protocol: req.protocol,
+      secure: req.secure,
     });
   }
 );
-
 
 // ======================================================
 // BACKGROUND PHOTO TEST
 // ======================================================
 //
-// This only confirms that the server knows the endpoint.
-// Actual processing should be handled by videoRoutes.
+// This GET route is ONLY a test.
 //
+// The real POST endpoint should be inside:
+//
+// routes/video.js
+//
+// POST /api/video/background/photo
+//
+// ======================================================
 
 app.get(
   '/api/video/background/photo',
@@ -311,7 +280,6 @@ app.get(
   }
 );
 
-
 // ======================================================
 // HEALTH CHECK
 // ======================================================
@@ -326,18 +294,17 @@ app.get(
         'Agriventure backend is healthy.',
       timestamp:
         new Date().toISOString(),
+      protocol:
+        req.protocol,
+      secure:
+        req.secure,
     });
   }
 );
 
-
 // ======================================================
 // 404 HANDLER
 // ======================================================
-//
-// IMPORTANT:
-// This MUST remain AFTER all routes.
-//
 
 app.use(
   (req, res) => {
@@ -345,22 +312,37 @@ app.use(
     console.log('==========================================');
     console.log('❌ 404 ROUTE NOT FOUND');
     console.log('==========================================');
+
     console.log(
       'Method:',
       req.method
     );
+
     console.log(
       'Original URL:',
       req.originalUrl
     );
+
     console.log(
       'Path:',
       req.path
     );
+
     console.log(
       'Host:',
       req.get('host')
     );
+
+    console.log(
+      'Protocol:',
+      req.protocol
+    );
+
+    console.log(
+      'Secure:',
+      req.secure
+    );
+
     console.log('==========================================');
     console.log('');
 
@@ -372,7 +354,6 @@ app.use(
     });
   }
 );
-
 
 // ======================================================
 // GLOBAL ERROR HANDLER
@@ -429,7 +410,6 @@ app.use(
   }
 );
 
-
 // ======================================================
 // SERVER START
 // ======================================================
@@ -459,7 +439,7 @@ app.listen(
     console.log('');
 
     console.log(
-      `Local:   http://localhost:${PORT}`
+      `Local: http://localhost:${PORT}`
     );
 
     console.log(
@@ -479,7 +459,7 @@ app.listen(
     );
 
     console.log(
-      `Test:`
+      'Test:'
     );
 
     console.log(
@@ -489,7 +469,7 @@ app.listen(
     console.log('');
 
     console.log(
-      `Server test:`
+      'Server test:'
     );
 
     console.log(
@@ -499,7 +479,7 @@ app.listen(
     console.log('');
 
     console.log(
-      `Generate:`
+      'Generate:'
     );
 
     console.log(
@@ -541,7 +521,7 @@ app.listen(
     console.log('');
 
     console.log(
-      `Video test:`
+      'Video test:'
     );
 
     console.log(
@@ -591,6 +571,7 @@ app.listen(
     console.log(
       '=========================================='
     );
+
     console.log('');
   }
 );
