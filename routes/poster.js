@@ -71,7 +71,10 @@ const TEMPLATES = new Set([
 // ======================================================
 
 function cleanText(value) {
-  if (value === undefined || value === null) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
     return '';
   }
 
@@ -127,12 +130,24 @@ function normalizeColor(value) {
 }
 
 function hexToRgb(hex) {
-  const color = normalizeColor(hex).slice(1);
+  const color =
+    normalizeColor(hex).slice(1);
 
   return {
-    r: parseInt(color.slice(0, 2), 16),
-    g: parseInt(color.slice(2, 4), 16),
-    b: parseInt(color.slice(4, 6), 16),
+    r: parseInt(
+      color.slice(0, 2),
+      16
+    ),
+
+    g: parseInt(
+      color.slice(2, 4),
+      16
+    ),
+
+    b: parseInt(
+      color.slice(4, 6),
+      16
+    ),
   };
 }
 
@@ -146,24 +161,34 @@ function rgba(hex, alpha) {
 // TEXT WRAPPING
 // ======================================================
 
-function wrapText(text, width, fontSize) {
+function wrapText(
+  text,
+  width,
+  fontSize
+) {
   const value = cleanText(text);
 
   if (!value) {
     return [];
   }
 
-  const averageCharWidth = Math.max(
-    fontSize * 0.52,
-    7
-  );
+  const averageCharWidth =
+    Math.max(
+      fontSize * 0.52,
+      7
+    );
 
-  const maxChars = Math.max(
-    8,
-    Math.floor(width / averageCharWidth)
-  );
+  const maxChars =
+    Math.max(
+      8,
+      Math.floor(
+        width /
+        averageCharWidth
+      )
+    );
 
-  const words = value.split(/\s+/);
+  const words =
+    value.split(/\s+/);
 
   const lines = [];
 
@@ -182,18 +207,25 @@ function wrapText(text, width, fontSize) {
         i += maxChars
       ) {
         lines.push(
-          word.slice(i, i + maxChars)
+          word.slice(
+            i,
+            i + maxChars
+          )
         );
       }
 
       continue;
     }
 
-    const candidate = line
-      ? `${line} ${word}`
-      : word;
+    const candidate =
+      line
+        ? `${line} ${word}`
+        : word;
 
-    if (candidate.length <= maxChars) {
+    if (
+      candidate.length <=
+      maxChars
+    ) {
       line = candidate;
     } else {
       if (line) {
@@ -215,22 +247,31 @@ function wrapText(text, width, fontSize) {
 // TRUNCATE LINES
 // ======================================================
 
-function truncateLines(lines, maxLines) {
-  if (lines.length <= maxLines) {
+function truncateLines(
+  lines,
+  maxLines
+) {
+  if (
+    !maxLines ||
+    lines.length <= maxLines
+  ) {
     return lines;
   }
 
-  const result = lines.slice(0, maxLines);
+  const result =
+    lines.slice(0, maxLines);
 
-  result[maxLines - 1] =
-    `${result[maxLines - 1]
-      .replace(/[.,;:!?-]+$/, '')}…`;
+  if (result.length) {
+    result[result.length - 1] =
+      `${result[result.length - 1]
+        .replace(/[.,;:!?-]+$/, '')}…`;
+  }
 
   return result;
 }
 
 // ======================================================
-// SVG TEXT BLOCK
+// TEXT BLOCK
 // ======================================================
 
 function textBlock(
@@ -244,23 +285,35 @@ function textBlock(
 ) {
   const {
     weight = '400',
-    lineHeight = Math.round(fontSize * 1.35),
+    lineHeight =
+      Math.round(
+        fontSize * 1.35
+      ),
     maxLines = 4,
     anchor = 'start',
-    family = 'Arial, Helvetica, sans-serif',
+    family =
+      'Arial, Helvetica, sans-serif',
   } = options;
 
-  const lines = truncateLines(
-    wrapText(text, width, fontSize),
-    maxLines
-  );
+  const lines =
+    truncateLines(
+      wrapText(
+        text,
+        width,
+        fontSize
+      ),
+      maxLines
+    );
 
   return lines
     .map(
       (line, index) => `
         <text
           x="${x}"
-          y="${y + index * lineHeight}"
+          y="${
+            y +
+            index * lineHeight
+          }"
           font-family="${family}"
           font-size="${fontSize}px"
           font-weight="${weight}"
@@ -276,21 +329,27 @@ function textBlock(
 // DATA URI -> BUFFER
 // ======================================================
 
-function dataUriToBuffer(dataUri) {
+function dataUriToBuffer(
+  dataUri
+) {
   if (!dataUri) {
     return null;
   }
 
-  const match = String(dataUri).match(
-    /^data:([^;]+);base64,(.+)$/s
-  );
+  const match =
+    String(dataUri).match(
+      /^data:([^;]+);base64,(.+)$/s
+    );
 
   if (!match) {
     return null;
   }
 
   try {
-    return Buffer.from(match[2], 'base64');
+    return Buffer.from(
+      match[2],
+      'base64'
+    );
   } catch (error) {
     console.log(
       '⚠️ Base64 conversion failed:',
@@ -302,25 +361,452 @@ function dataUriToBuffer(dataUri) {
 }
 
 // ======================================================
-// REMOVE WHITE / VERY LIGHT BACKGROUND
-//
-// This is intended for normal product photos with a
-// white/light background.
+// COLOR DISTANCE
 // ======================================================
 
-async function removeProductBackground(inputBuffer) {
+function colorDistance(
+  r1,
+  g1,
+  b1,
+  r2,
+  g2,
+  b2
+) {
+  return Math.sqrt(
+    Math.pow(r1 - r2, 2) +
+    Math.pow(g1 - g2, 2) +
+    Math.pow(b1 - b2, 2)
+  );
+}
+
+// ======================================================
+// EDGE BACKGROUND REMOVAL
+//
+// Removes background ONLY when it is connected to the
+// outer edges.
+//
+// This is important because we do NOT want to simply
+// remove every black pixel from the product.
+// ======================================================
+
+async function removeEdgeBackground(
+  inputBuffer
+) {
   try {
-    const image = sharp(inputBuffer)
-      .ensureAlpha();
+    const prepared =
+      sharp(inputBuffer)
+        .ensureAlpha();
 
-    const metadata = await image.metadata();
+    const metadata =
+      await prepared.metadata();
 
-    const width = metadata.width || 1000;
-    const height = metadata.height || 1000;
+    const width =
+      metadata.width || 1000;
 
-    const raw = await image
-      .raw()
+    const height =
+      metadata.height || 1000;
+
+    const raw =
+      await prepared
+        .raw()
+        .toBuffer();
+
+    const channels = 4;
+
+    // --------------------------------------------------
+    // Sample the four corners.
+    // --------------------------------------------------
+
+    const corners = [
+      [
+        raw[0],
+        raw[1],
+        raw[2],
+      ],
+
+      [
+        raw[
+          (width - 1) *
+            channels
+        ],
+        raw[
+          (width - 1) *
+            channels + 1
+        ],
+        raw[
+          (width - 1) *
+            channels + 2
+        ],
+      ],
+
+      [
+        raw[
+          ((height - 1) *
+            width) *
+            channels
+        ],
+        raw[
+          ((height - 1) *
+            width) *
+            channels + 1
+        ],
+        raw[
+          ((height - 1) *
+            width) *
+            channels + 2
+        ],
+      ],
+
+      [
+        raw[
+          ((height - 1) *
+            width +
+            (width - 1)) *
+            channels
+        ],
+        raw[
+          ((height - 1) *
+            width +
+            (width - 1)) *
+            channels + 1
+        ],
+        raw[
+          ((height - 1) *
+            width +
+            (width - 1)) *
+            channels + 2
+        ],
+      ],
+    ];
+
+    // --------------------------------------------------
+    // Determine whether the corners represent a
+    // white/light or black/dark background.
+    // --------------------------------------------------
+
+    const brightnessValues =
+      corners.map(
+        ([r, g, b]) =>
+          (r + g + b) / 3
+      );
+
+    const averageBrightness =
+      brightnessValues.reduce(
+        (sum, value) =>
+          sum + value,
+        0
+      ) /
+      brightnessValues.length;
+
+    const brightCorners =
+      brightnessValues.filter(
+        value => value >= 180
+      ).length;
+
+    const darkCorners =
+      brightnessValues.filter(
+        value => value <= 80
+      ).length;
+
+    let backgroundMode =
+      'none';
+
+    if (brightCorners >= 2) {
+      backgroundMode =
+        'light';
+    } else if (
+      darkCorners >= 2
+    ) {
+      backgroundMode =
+        'dark';
+    }
+
+    if (
+      backgroundMode ===
+      'none'
+    ) {
+      return inputBuffer;
+    }
+
+    // --------------------------------------------------
+    // Choose the average corner color.
+    // --------------------------------------------------
+
+    const selectedCorners =
+      corners.filter(
+        ([r, g, b]) => {
+          const brightness =
+            (r + g + b) / 3;
+
+          if (
+            backgroundMode ===
+            'light'
+          ) {
+            return (
+              brightness >= 170
+            );
+          }
+
+          return (
+            brightness <= 100
+          );
+        }
+      );
+
+    const sourceCorners =
+      selectedCorners.length
+        ? selectedCorners
+        : corners;
+
+    const bgColor =
+      sourceCorners.reduce(
+        (acc, color) => ({
+          r:
+            acc.r + color[0],
+          g:
+            acc.g + color[1],
+          b:
+            acc.b + color[2],
+        }),
+        {
+          r: 0,
+          g: 0,
+          b: 0,
+        }
+      );
+
+    bgColor.r /=
+      sourceCorners.length;
+
+    bgColor.g /=
+      sourceCorners.length;
+
+    bgColor.b /=
+      sourceCorners.length;
+
+    // --------------------------------------------------
+    // Flood fill from the outer edge.
+    //
+    // Only connected background pixels are removed.
+    // This protects black/white product details.
+    // --------------------------------------------------
+
+    const totalPixels =
+      width * height;
+
+    const visited =
+      new Uint8Array(
+        totalPixels
+      );
+
+    const queueX = [];
+    const queueY = [];
+
+    function addPixel(
+      x,
+      y
+    ) {
+      if (
+        x < 0 ||
+        y < 0 ||
+        x >= width ||
+        y >= height
+      ) {
+        return;
+      }
+
+      const index =
+        y * width + x;
+
+      if (
+        visited[index]
+      ) {
+        return;
+      }
+
+      visited[index] = 1;
+
+      queueX.push(x);
+      queueY.push(y);
+    }
+
+    // Add all four edges.
+    for (
+      let x = 0;
+      x < width;
+      x++
+    ) {
+      addPixel(x, 0);
+      addPixel(
+        x,
+        height - 1
+      );
+    }
+
+    for (
+      let y = 0;
+      y < height;
+      y++
+    ) {
+      addPixel(0, y);
+      addPixel(
+        width - 1,
+        y
+      );
+    }
+
+    let queueIndex = 0;
+
+    const threshold =
+      backgroundMode ===
+      'light'
+        ? 55
+        : 55;
+
+    while (
+      queueIndex <
+      queueX.length
+    ) {
+      const x =
+        queueX[queueIndex];
+
+      const y =
+        queueY[queueIndex];
+
+      queueIndex++;
+
+      const pixelIndex =
+        (y * width + x) *
+        channels;
+
+      const r =
+        raw[pixelIndex];
+
+      const g =
+        raw[pixelIndex + 1];
+
+      const b =
+        raw[pixelIndex + 2];
+
+      const alpha =
+        raw[pixelIndex + 3];
+
+      if (alpha === 0) {
+        continue;
+      }
+
+      const distance =
+        colorDistance(
+          r,
+          g,
+          b,
+          bgColor.r,
+          bgColor.g,
+          bgColor.b
+        );
+
+      let isBackground =
+        distance <= threshold;
+
+      if (
+        backgroundMode ===
+        'light'
+      ) {
+        const brightness =
+          (r + g + b) / 3;
+
+        const saturation =
+          Math.max(r, g, b) -
+          Math.min(r, g, b);
+
+        if (
+          brightness >= 215 &&
+          saturation <= 55
+        ) {
+          isBackground = true;
+        }
+      }
+
+      if (
+        backgroundMode ===
+        'dark'
+      ) {
+        const brightness =
+          (r + g + b) / 3;
+
+        const saturation =
+          Math.max(r, g, b) -
+          Math.min(r, g, b);
+
+        if (
+          brightness <= 70 &&
+          saturation <= 55
+        ) {
+          isBackground = true;
+        }
+      }
+
+      if (!isBackground) {
+        continue;
+      }
+
+      raw[pixelIndex + 3] =
+        0;
+
+      addPixel(x + 1, y);
+      addPixel(x - 1, y);
+      addPixel(x, y + 1);
+      addPixel(x, y - 1);
+    }
+
+    return await sharp(
+      raw,
+      {
+        raw: {
+          width,
+          height,
+          channels: 4,
+        },
+      }
+    )
+      .png()
       .toBuffer();
+
+  } catch (error) {
+    console.log(
+      '⚠️ Edge background removal failed:',
+      error.message
+    );
+
+    return inputBuffer;
+  }
+}
+
+// ======================================================
+// REMOVE WHITE / LIGHT BACKGROUND
+// ======================================================
+
+async function removeLightBackground(
+  inputBuffer
+) {
+  try {
+    const image =
+      sharp(inputBuffer)
+        .ensureAlpha();
+
+    const metadata =
+      await image.metadata();
+
+    const width =
+      metadata.width || 1000;
+
+    const height =
+      metadata.height || 1000;
+
+    const raw =
+      await image
+        .raw()
+        .toBuffer();
 
     const channels = 4;
 
@@ -333,60 +819,70 @@ async function removeProductBackground(inputBuffer) {
       const g = raw[i + 1];
       const b = raw[i + 2];
 
-      // Very bright pixels are probably white background.
       const brightness =
         (r + g + b) / 3;
 
-      const maxChannel =
-        Math.max(r, g, b);
-
-      const minChannel =
+      const saturation =
+        Math.max(r, g, b) -
         Math.min(r, g, b);
 
-      const saturation =
-        maxChannel - minChannel;
+      const isWhite =
+        brightness >= 242 &&
+        saturation <= 35;
 
-      // Strong white/light background detection.
-      const isWhiteBackground =
-        brightness >= 238 &&
-        saturation <= 25;
-
-      // Also remove very light gray background.
       const isLightGray =
-        brightness >= 225 &&
-        saturation <= 15;
+        brightness >= 228 &&
+        saturation <= 22;
 
       if (
-        isWhiteBackground ||
+        isWhite ||
         isLightGray
       ) {
         raw[i + 3] = 0;
       }
     }
 
-    return await sharp(raw, {
-      raw: {
-        width,
-        height,
-        channels: 4,
-      },
-    })
+    return await sharp(
+      raw,
+      {
+        raw: {
+          width,
+          height,
+          channels: 4,
+        },
+      }
+    )
       .png()
       .toBuffer();
 
   } catch (error) {
     console.log(
-      '⚠️ Background removal failed:',
+      '⚠️ Light background removal failed:',
       error.message
     );
 
-    // Return original image if removal fails.
     return inputBuffer;
   }
 }
 
 // ======================================================
 // PRODUCT IMAGE PROCESSING
+//
+// IMPORTANT:
+//
+// We do NOT resize the original image with "contain"
+// before trimming.
+//
+// That was one of the reasons black margins survived.
+//
+// Instead:
+//
+// 1. Decode
+// 2. Remove edge background
+// 3. Remove light background
+// 4. Trim transparent pixels
+// 5. Resize the actual product
+// 6. Put it on a transparent canvas
 // ======================================================
 
 async function processProductImage(
@@ -395,39 +891,173 @@ async function processProductImage(
   height
 ) {
   try {
-    // First remove transparent/empty borders.
-    const trimmed = await sharp(inputBuffer)
-      .ensureAlpha()
-      .trim({
-        threshold: 18,
-      })
-      .png()
-      .toBuffer();
+    console.log(
+      '🖼️ Starting advanced product image processing...'
+    );
 
-    // Remove common white background.
-    const backgroundRemoved =
-      await removeProductBackground(trimmed);
+    // --------------------------------------------------
+    // Initial trim.
+    // --------------------------------------------------
 
-    // Trim again after removing the background.
-    const finalTrimmed = await sharp(
-      backgroundRemoved
-    )
-      .ensureAlpha()
-      .trim({
-        threshold: 8,
-      })
-      .png()
-      .toBuffer();
+    let working =
+      await sharp(inputBuffer)
+        .ensureAlpha()
+        .trim({
+          threshold: 12,
+        })
+        .png()
+        .toBuffer();
 
-    // Resize while preserving transparency.
-    return await sharp(finalTrimmed)
-      .resize(width, height, {
-        fit: 'contain',
-        position: 'centre',
-        withoutEnlargement: false,
+    // --------------------------------------------------
+    // Remove edge-connected black/white background.
+    // --------------------------------------------------
+
+    working =
+      await removeEdgeBackground(
+        working
+      );
+
+    // --------------------------------------------------
+    // Remove remaining light background.
+    // --------------------------------------------------
+
+    working =
+      await removeLightBackground(
+        working
+      );
+
+    // --------------------------------------------------
+    // Trim again.
+    //
+    // This is what removes the now-transparent
+    // black/white border.
+    // --------------------------------------------------
+
+    working =
+      await sharp(working)
+        .ensureAlpha()
+        .trim({
+          threshold: 5,
+        })
+        .png()
+        .toBuffer();
+
+    const metadata =
+      await sharp(
+        working
+      ).metadata();
+
+    const sourceW =
+      metadata.width || width;
+
+    const sourceH =
+      metadata.height || height;
+
+    console.log(
+      'Product after background removal:',
+      `${sourceW}x${sourceH}`
+    );
+
+    // --------------------------------------------------
+    // Product should occupy approximately 90% of the
+    // available area.
+    // --------------------------------------------------
+
+    const targetW =
+      Math.max(
+        100,
+        Math.round(
+          width * 0.90
+        )
+      );
+
+    const targetH =
+      Math.max(
+        100,
+        Math.round(
+          height * 0.90
+        )
+      );
+
+    // --------------------------------------------------
+    // Scale the actual product.
+    //
+    // "inside" keeps proportions without reintroducing
+    // the original image's empty space.
+    // --------------------------------------------------
+
+    const resized =
+      await sharp(working)
+        .resize({
+          width: targetW,
+          height: targetH,
+          fit: 'inside',
+          withoutEnlargement: false,
+          kernel: sharp.kernel.lanczos3,
+        })
+        .png()
+        .toBuffer();
+
+    const resizedMeta =
+      await sharp(
+        resized
+      ).metadata();
+
+    const finalW =
+      resizedMeta.width ||
+      targetW;
+
+    const finalH =
+      resizedMeta.height ||
+      targetH;
+
+    // --------------------------------------------------
+    // Put product onto a transparent canvas that is
+    // exactly the image area.
+    // --------------------------------------------------
+
+    const left =
+      Math.round(
+        (width - finalW) / 2
+      );
+
+    const top =
+      Math.round(
+        (height - finalH) / 2
+      );
+
+    const canvas =
+      await sharp({
+        create: {
+          width,
+          height,
+          channels: 4,
+          background: {
+            r: 255,
+            g: 255,
+            b: 255,
+            alpha: 0,
+          },
+        },
       })
-      .png()
-      .toBuffer();
+        .composite([
+          {
+            input: resized,
+            left,
+            top,
+          },
+        ])
+        .png()
+        .toBuffer();
+
+    console.log(
+      '✅ Product image finished:',
+      `${finalW}x${finalH}`,
+      'inside',
+      `${width}x${height}`
+    );
+
+    return canvas;
 
   } catch (error) {
     console.log(
@@ -435,10 +1065,16 @@ async function processProductImage(
       error.message
     );
 
-    return await sharp(inputBuffer)
-      .resize(width, height, {
-        fit: 'contain',
-        position: 'centre',
+    // Safe fallback.
+    return await sharp(
+      inputBuffer
+    )
+      .ensureAlpha()
+      .resize({
+        width,
+        height,
+        fit: 'inside',
+        withoutEnlargement: false,
       })
       .png()
       .toBuffer();
@@ -449,85 +1085,61 @@ async function processProductImage(
 // LAYOUT
 // ======================================================
 
-function layoutFor(size, template) {
+function layoutFor(
+  size,
+  template
+) {
   const {
     width,
     height,
   } = SIZES[size];
 
-  const margin = Math.round(
-    Math.min(width, height) * 0.055
-  );
+  const margin =
+    Math.round(
+      Math.min(
+        width,
+        height
+      ) * 0.045
+    );
 
   let headerH;
 
   if (size === 'story') {
-    headerH = 285;
-  } else if (size === 'landscape') {
-    headerH = 205;
+    headerH = 270;
+  } else if (
+    size === 'landscape'
+  ) {
+    headerH = 190;
   } else {
-    headerH = 230;
+    headerH = 210;
   }
 
   let footerH;
 
   if (size === 'story') {
-    footerH = 135;
-  } else if (size === 'landscape') {
-    footerH = 105;
+    footerH = 150;
+  } else if (
+    size === 'landscape'
+  ) {
+    footerH = 115;
   } else {
-    footerH = 105;
+    footerH = 115;
   }
 
   const contentY =
-    headerH + 10;
+    headerH;
 
   const contentBottom =
-    height - footerH;
+    height -
+    footerH -
+    10;
 
   const contentH =
     Math.max(
-      320,
-      contentBottom - contentY
+      400,
+      contentBottom -
+      contentY
     );
-
-  let leftRatio = 0.55;
-
-  if (template === 'productInfo') {
-    leftRatio = 0.47;
-  }
-
-  if (template === 'minimal') {
-    leftRatio = 0.53;
-  }
-
-  if (template === 'boldProduct') {
-    leftRatio = 0.50;
-  }
-
-  if (size === 'landscape') {
-    leftRatio =
-      template === 'productInfo'
-        ? 0.46
-        : 0.54;
-  }
-
-  const gap = Math.round(
-    Math.min(width, height) * 0.022
-  );
-
-  const innerW =
-    width - margin * 2;
-
-  const leftW =
-    Math.round(
-      (innerW - gap) * leftRatio
-    );
-
-  const rightW =
-    innerW -
-    gap -
-    leftW;
 
   return {
     margin,
@@ -536,18 +1148,15 @@ function layoutFor(size, template) {
     contentY,
     contentH,
 
-    leftX: margin,
-    leftW,
+    contentX: margin,
 
-    rightX:
-      margin +
-      leftW +
-      gap,
-
-    rightW,
+    contentW:
+      width -
+      margin * 2,
 
     footerY:
-      height - footerH,
+      height -
+      footerH,
   };
 }
 
@@ -560,51 +1169,62 @@ function templateColors(
   theme
 ) {
   const light = {
-    bg: '#F5F8F4',
+    bg: '#F4F8F3',
     panel: '#FFFFFF',
     text: '#172017',
     muted: '#586158',
     accent: theme,
-    accentSoft: rgba(theme, 0.10),
+    accentSoft:
+      rgba(theme, 0.10),
     border: '#DDE6DC',
-    footer: rgba(theme, 0.10),
+    footer:
+      rgba(theme, 0.12),
     white: '#FFFFFF',
   };
 
-  if (template === 'boldProduct') {
+  if (
+    template ===
+    'boldProduct'
+  ) {
     return {
       bg: theme,
       panel: '#FFFFFF',
       text: '#123016',
       muted: '#EAF5EA',
-      accent: '#FFFFFF',
+      accent: theme,
       accentSoft:
-        'rgba(255,255,255,0.14)',
+        'rgba(46,125,50,0.10)',
       border:
-        'rgba(255,255,255,0.20)',
+        'rgba(255,255,255,0.30)',
       footer:
-        'rgba(0,0,0,0.20)',
+        'rgba(0,0,0,0.22)',
       white: '#FFFFFF',
     };
   }
 
-  if (template === 'premiumAgri') {
+  if (
+    template ===
+    'premiumAgri'
+  ) {
     return {
-      bg: '#0E2613',
-      panel: '#16371C',
+      bg: '#102815',
+      panel: '#183C1F',
       text: '#FFFFFF',
       muted: '#D7E8D9',
       accent: theme,
       accentSoft:
-        rgba(theme, 0.16),
+        rgba(theme, 0.17),
       border:
-        rgba(theme, 0.40),
+        rgba(theme, 0.38),
       footer: '#091A0D',
       white: '#FFFFFF',
     };
   }
 
-  if (template === 'pestControl') {
+  if (
+    template ===
+    'pestControl'
+  ) {
     return {
       bg: '#FFF8EC',
       panel: '#FFFFFF',
@@ -618,7 +1238,10 @@ function templateColors(
     };
   }
 
-  if (template === 'promotion') {
+  if (
+    template ===
+    'promotion'
+  ) {
     return {
       bg: '#FFFDF7',
       panel: '#FFFFFF',
@@ -632,35 +1255,46 @@ function templateColors(
     };
   }
 
-  if (template === 'productInfo') {
+  if (
+    template ===
+    'productInfo'
+  ) {
     return {
       bg: '#F3F7F3',
       panel: '#FFFFFF',
       text: '#1C281D',
       muted: '#5C675D',
       accent: theme,
-      accentSoft: rgba(theme, 0.09),
+      accentSoft:
+        rgba(theme, 0.09),
       border: '#D7E1D7',
       footer: '#E8EFE8',
       white: '#FFFFFF',
     };
   }
 
-  if (template === 'socialMedia') {
+  if (
+    template ===
+    'socialMedia'
+  ) {
     return {
       bg: '#F0F7F1',
       panel: '#FFFFFF',
       text: '#17301B',
       muted: '#5D6B60',
       accent: theme,
-      accentSoft: rgba(theme, 0.11),
+      accentSoft:
+        rgba(theme, 0.11),
       border: '#D5E4D7',
       footer: '#DFECE0',
       white: '#FFFFFF',
     };
   }
 
-  if (template === 'minimal') {
+  if (
+    template ===
+    'minimal'
+  ) {
     return {
       bg: '#FFFFFF',
       panel: '#FFFFFF',
@@ -678,7 +1312,7 @@ function templateColors(
 }
 
 // ======================================================
-// BACKGROUND SVG
+// BACKGROUND
 // ======================================================
 
 function backgroundSvg(
@@ -688,9 +1322,7 @@ function backgroundSvg(
   colors,
   theme
 ) {
-  let svg = '';
-
-  svg += `
+  let svg = `
     <rect
       width="${width}"
       height="${height}"
@@ -702,32 +1334,33 @@ function backgroundSvg(
   // MODERN FARM
   // ----------------------------------------------------
 
-  if (template === 'modernFarm') {
+  if (
+    template ===
+    'modernFarm'
+  ) {
     svg += `
       <circle
         cx="${width * 0.90}"
-        cy="${height * 0.12}"
-        r="${Math.min(width, height) * 0.10}"
+        cy="${height * 0.09}"
+        r="${Math.min(width, height) * 0.11}"
         fill="${theme}"
-        opacity="0.10"
+        opacity="0.09"
       />
-    `;
 
-    svg += `
       <path
         d="
-          M0 ${height * 0.90}
-          C${width * 0.18} ${height * 0.74},
-           ${width * 0.36} ${height * 0.95},
-           ${width * 0.56} ${height * 0.83}
-          C${width * 0.75} ${height * 0.70},
-           ${width * 0.88} ${height * 0.88},
-           ${width} ${height * 0.77}
+          M0 ${height * 0.94}
+          C${width * 0.20} ${height * 0.82},
+           ${width * 0.38} ${height * 0.97},
+           ${width * 0.57} ${height * 0.87}
+          C${width * 0.77} ${height * 0.76},
+           ${width * 0.88} ${height * 0.91},
+           ${width} ${height * 0.82}
           V${height}
           H0
           Z
         "
-        fill="${rgba(theme, 0.10)}"
+        fill="${rgba(theme, 0.08)}"
       />
     `;
   }
@@ -736,24 +1369,25 @@ function backgroundSvg(
   // BOLD PRODUCT
   // ----------------------------------------------------
 
-  if (template === 'boldProduct') {
+  if (
+    template ===
+    'boldProduct'
+  ) {
     svg += `
       <circle
-        cx="${width * 0.88}"
-        cy="${height * 0.12}"
-        r="${Math.min(width, height) * 0.25}"
+        cx="${width * 0.92}"
+        cy="${height * 0.10}"
+        r="${Math.min(width, height) * 0.22}"
         fill="#FFFFFF"
         opacity="0.10"
       />
-    `;
 
-    svg += `
       <circle
-        cx="${width * 0.06}"
-        cy="${height * 0.94}"
-        r="${Math.min(width, height) * 0.20}"
+        cx="${width * 0.05}"
+        cy="${height * 0.90}"
+        r="${Math.min(width, height) * 0.18}"
         fill="#FFFFFF"
-        opacity="0.08"
+        opacity="0.07"
       />
     `;
   }
@@ -762,27 +1396,21 @@ function backgroundSvg(
   // PREMIUM
   // ----------------------------------------------------
 
-  if (template === 'premiumAgri') {
+  if (
+    template ===
+    'premiumAgri'
+  ) {
     svg += `
       <rect
-        x="22"
-        y="22"
-        width="${width - 44}"
-        height="${height - 44}"
-        rx="32"
+        x="20"
+        y="20"
+        width="${width - 40}"
+        height="${height - 40}"
+        rx="34"
         fill="none"
         stroke="${theme}"
         stroke-width="4"
         opacity="0.65"
-      />
-    `;
-
-    svg += `
-      <circle
-        cx="${width - 75}"
-        cy="75"
-        r="18"
-        fill="${theme}"
       />
     `;
   }
@@ -791,9 +1419,14 @@ function backgroundSvg(
   // PEST CONTROL
   // ----------------------------------------------------
 
-  if (template === 'pestControl') {
+  if (
+    template ===
+    'pestControl'
+  ) {
     const topH =
-      Math.round(height * 0.22);
+      Math.round(
+        height * 0.19
+      );
 
     svg += `
       <rect
@@ -803,21 +1436,13 @@ function backgroundSvg(
         height="${topH}"
         fill="${theme}"
       />
-    `;
 
-    svg += `
-      <path
-        d="
-          M0 ${topH}
-          Q${width * 0.25} ${topH - 45}
-           ${width * 0.50} ${topH}
-          T${width} ${topH}
-          V0
-          H0
-          Z
-        "
-        fill="${theme}"
-        opacity="0.92"
+      <circle
+        cx="${width * 0.92}"
+        cy="${topH * 0.40}"
+        r="${Math.min(width, height) * 0.12}"
+        fill="#FFFFFF"
+        opacity="0.12"
       />
     `;
   }
@@ -826,9 +1451,14 @@ function backgroundSvg(
   // PROMOTION
   // ----------------------------------------------------
 
-  if (template === 'promotion') {
+  if (
+    template ===
+    'promotion'
+  ) {
     const topH =
-      Math.round(height * 0.20);
+      Math.round(
+        height * 0.18
+      );
 
     svg += `
       <rect
@@ -838,13 +1468,11 @@ function backgroundSvg(
         height="${topH}"
         fill="${theme}"
       />
-    `;
 
-    svg += `
       <circle
         cx="${width * 0.90}"
-        cy="${height * 0.10}"
-        r="${Math.min(width, height) * 0.15}"
+        cy="${height * 0.08}"
+        r="${Math.min(width, height) * 0.13}"
         fill="#FFFFFF"
         opacity="0.12"
       />
@@ -855,9 +1483,14 @@ function backgroundSvg(
   // PRODUCT INFO
   // ----------------------------------------------------
 
-  if (template === 'productInfo') {
+  if (
+    template ===
+    'productInfo'
+  ) {
     const side =
-      Math.round(width * 0.21);
+      Math.round(
+        width * 0.075
+      );
 
     svg += `
       <rect
@@ -868,25 +1501,20 @@ function backgroundSvg(
         fill="${theme}"
       />
     `;
-
-    svg += `
-      <rect
-        x="${side}"
-        y="0"
-        width="14"
-        height="${height}"
-        fill="${rgba(theme, 0.12)}"
-      />
-    `;
   }
 
   // ----------------------------------------------------
   // SOCIAL MEDIA
   // ----------------------------------------------------
 
-  if (template === 'socialMedia') {
+  if (
+    template ===
+    'socialMedia'
+  ) {
     const topH =
-      Math.round(height * 0.135);
+      Math.round(
+        height * 0.12
+      );
 
     svg += `
       <rect
@@ -896,13 +1524,11 @@ function backgroundSvg(
         height="${topH}"
         fill="${theme}"
       />
-    `;
 
-    svg += `
       <circle
         cx="${width * 0.92}"
-        cy="${height * 0.07}"
-        r="${Math.min(width, height) * 0.13}"
+        cy="${topH * 0.50}"
+        r="${Math.min(width, height) * 0.10}"
         fill="#FFFFFF"
         opacity="0.10"
       />
@@ -910,6 +1536,95 @@ function backgroundSvg(
   }
 
   return svg;
+}
+
+// ======================================================
+// OFFER BADGE
+// ======================================================
+
+function drawOfferBadge(
+  width,
+  height,
+  theme,
+  promoText
+) {
+  if (!cleanText(promoText)) {
+    return '';
+  }
+
+  const badgeW =
+    height >= 1800
+      ? 245
+      : 205;
+
+  const badgeH =
+    height >= 1800
+      ? 92
+      : 78;
+
+  const x =
+    width -
+    badgeW -
+    Math.round(
+      Math.min(width, height) *
+      0.045
+    );
+
+  const y =
+    Math.round(
+      Math.min(width, height) *
+      0.045
+    );
+
+  return `
+    <g>
+      <rect
+        x="${x}"
+        y="${y}"
+        width="${badgeW}"
+        height="${badgeH}"
+        rx="${badgeH / 2}"
+        fill="${theme}"
+      />
+
+      <text
+        x="${x + badgeW / 2}"
+        y="${y + badgeH * 0.39}"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="${
+          height >= 1800
+            ? 18
+            : 15
+        }px"
+        font-weight="700"
+        fill="#FFFFFF"
+        text-anchor="middle"
+        letter-spacing="2"
+      >
+        SPECIAL OFFER
+      </text>
+
+      <text
+        x="${x + badgeW / 2}"
+        y="${y + badgeH * 0.70}"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="${
+          height >= 1800
+            ? 25
+            : 21
+        }px"
+        font-weight="900"
+        fill="#FFFFFF"
+        text-anchor="middle"
+      >
+        ${escapeXml(
+          cleanText(
+            promoText
+          ).slice(0, 24)
+        )}
+      </text>
+    </g>
+  `;
 }
 
 // ======================================================
@@ -923,153 +1638,21 @@ function drawHeader(
   template,
   colors,
   businessName,
-  location
+  location,
+  promoText
 ) {
+  let svg = '';
+
   const x =
     layout.margin;
 
-  let svg = '';
-
-  const businessSize =
-    height >= 1800
-      ? 52
-      : width >= 1800
-        ? 48
-        : 44;
-
-  // ----------------------------------------------------
-  // PRODUCT INFO
-  // ----------------------------------------------------
-
-  if (template === 'productInfo') {
-    svg += `
-      <text
-        x="${x}"
-        y="${layout.headerH * 0.52}"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="24px"
-        font-weight="900"
-        fill="#FFFFFF"
-        letter-spacing="1"
-      >
-        AGRIVENTURE
-      </text>
-    `;
-
-    svg += `
-      <text
-        x="${x}"
-        y="${layout.headerH * 0.52 + 40}"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="15px"
-        font-weight="700"
-        fill="#E8F5E9"
-        letter-spacing="2"
-      >
-        PRODUCT INFORMATION
-      </text>
-    `;
-
-    return svg;
-  }
-
-  // ----------------------------------------------------
-  // PEST CONTROL
-  // ----------------------------------------------------
-
-  if (template === 'pestControl') {
-    svg += `
-      <text
-        x="${x}"
-        y="55"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="16px"
-        font-weight="900"
-        fill="#FFFFFF"
-        letter-spacing="3"
-      >
-        PEST CONTROL
-      </text>
-    `;
-
-    svg += textBlock(
-      businessName,
-      x,
-      112,
-      width * 0.70,
-      businessSize,
-      '#FFFFFF',
-      {
-        weight: '900',
-        maxLines: 2,
-        lineHeight:
-          businessSize * 1.05,
-      }
-    );
-
-    if (location) {
-      svg += textBlock(
-        location,
-        x,
-        190,
-        width * 0.62,
-        18,
-        '#F3FFF4',
-        {
-          maxLines: 1,
-        }
-      );
-    }
-
-    return svg;
-  }
-
-  // ----------------------------------------------------
-  // PROMOTION
-  // ----------------------------------------------------
-
-  if (template === 'promotion') {
-    svg += textBlock(
-      businessName,
-      x,
-      115,
-      width * 0.70,
-      businessSize,
-      '#FFFFFF',
-      {
-        weight: '900',
-        maxLines: 2,
-        lineHeight:
-          businessSize * 1.05,
-      }
-    );
-
-    if (location) {
-      svg += textBlock(
-        location,
-        x,
-        195,
-        width * 0.60,
-        18,
-        '#FFFFFF',
-        {
-          maxLines: 1,
-        }
-      );
-    }
-
-    return svg;
-  }
-
-  // ----------------------------------------------------
-  // DARK TEMPLATES
-  // ----------------------------------------------------
-
   const dark =
-    template === 'boldProduct' ||
-    template === 'premiumAgri';
+    template ===
+      'boldProduct' ||
+    template ===
+      'premiumAgri';
 
-  const color =
+  const textColor =
     dark
       ? '#FFFFFF'
       : colors.text;
@@ -1079,119 +1662,294 @@ function drawHeader(
       ? '#DCEBDD'
       : colors.muted;
 
-  const headerY =
-    template === 'socialMedia'
-      ? 100
-      : layout.margin + businessSize;
+  const businessSize =
+    height >= 1800
+      ? 62
+      : width >= 1800
+        ? 58
+        : 54;
 
-  // Bigger company name.
+  // ----------------------------------------------------
+  // COMPANY NAME
+  // ----------------------------------------------------
+
   svg += textBlock(
     businessName,
     x,
-    headerY,
-    width * 0.70,
+    layout.margin +
+      businessSize,
+    width * 0.68,
     businessSize,
-    color,
+    textColor,
     {
       weight: '900',
       maxLines: 2,
       lineHeight:
-        businessSize * 1.05,
+        businessSize * 1.02,
+      family:
+        'Arial, Helvetica, sans-serif',
     }
   );
 
+  // ----------------------------------------------------
+  // AGRICULTURAL LABEL
+  // ----------------------------------------------------
+
+  svg += `
+    <text
+      x="${x}"
+      y="${
+        layout.margin +
+        businessSize * 1.70
+      }"
+      font-family="Arial, Helvetica, sans-serif"
+      font-size="${
+        height >= 1800
+          ? 17
+          : 14
+      }px"
+      font-weight="800"
+      fill="${muted}"
+      letter-spacing="3"
+    >
+      AGRICULTURAL SOLUTIONS
+    </text>
+  `;
+
+  // ----------------------------------------------------
+  // LOCATION
+  // ----------------------------------------------------
+
   if (location) {
-    svg += textBlock(
-      location,
-      x,
-      headerY +
-        businessSize * 1.55,
-      width * 0.62,
-      18,
-      muted,
-      {
-        maxLines: 1,
-      }
-    );
+    svg += `
+      <text
+        x="${x}"
+        y="${
+          layout.margin +
+          businessSize * 1.98
+        }"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="17px"
+        font-weight="600"
+        fill="${muted}"
+      >
+        ${escapeXml(location)}
+      </text>
+    `;
   }
+
+  // ----------------------------------------------------
+  // OFFER BADGE
+  // ----------------------------------------------------
+
+  svg += drawOfferBadge(
+    width,
+    height,
+    colors.accent,
+    promoText
+  );
 
   return svg;
 }
 
 // ======================================================
-// FIELD BLOCK
+// DESCRIPTION FITTING
+//
+// Finds the largest font that allows as much text as
+// possible inside the description area.
 // ======================================================
 
-function fieldBlock(
-  label,
-  value,
-  x,
-  y,
+function fitDescription(
+  text,
   width,
-  colors,
-  options = {}
+  height,
+  preferredSize,
+  minimumSize
 ) {
-  const {
-    labelSize = 14,
-    valueSize = 20,
-    maxLines = 3,
-    labelColor = colors.accent,
-    valueColor = colors.text,
-    lineGap = 25,
-    valueLineHeight =
-      Math.round(valueSize * 1.27),
-  } = options;
+  let selectedSize =
+    minimumSize;
 
-  if (!cleanText(value)) {
-    return {
-      svg: '',
-      height: 0,
-    };
+  let selectedLines =
+    wrapText(
+      text,
+      width,
+      minimumSize
+    );
+
+  for (
+    let size =
+      preferredSize;
+    size >= minimumSize;
+    size -= 1
+  ) {
+    const lines =
+      wrapText(
+        text,
+        width,
+        size
+      );
+
+    const lineHeight =
+      Math.round(
+        size * 1.34
+      );
+
+    const needed =
+      lines.length *
+      lineHeight;
+
+    if (
+      needed <= height
+    ) {
+      selectedSize =
+        size;
+
+      selectedLines =
+        lines;
+
+      break;
+    }
   }
 
-  const lines =
+  const lineHeight =
+    Math.round(
+      selectedSize * 1.34
+    );
+
+  const maxLines =
+    Math.max(
+      1,
+      Math.floor(
+        height /
+        lineHeight
+      )
+    );
+
+  selectedLines =
     truncateLines(
-      wrapText(
-        value,
-        width,
-        valueSize
-      ),
+      selectedLines,
       maxLines
     );
 
-  let svg = '';
+  return {
+    fontSize:
+      selectedSize,
 
-  // Label.
-  svg += `
-    <text
+    lineHeight,
+
+    lines:
+      selectedLines,
+  };
+}
+
+// ======================================================
+// DESCRIPTION BOX
+// ======================================================
+
+function drawDescriptionBox(
+  x,
+  y,
+  width,
+  height,
+  description,
+  colors,
+  textColor,
+  accent,
+  dark
+) {
+  if (!cleanText(description)) {
+    return '';
+  }
+
+  const boxPadding =
+    Math.round(
+      Math.min(
+        width,
+        height
+      ) * 0.055
+    );
+
+  const labelSize =
+    height >= 500
+      ? 17
+      : 14;
+
+  const textAreaHeight =
+    Math.max(
+      80,
+      height -
+      boxPadding * 2 -
+      55
+    );
+
+  const fit =
+    fitDescription(
+      description,
+      width -
+        boxPadding * 2,
+      textAreaHeight,
+      height >= 800
+        ? 30
+        : 27,
+      23
+    );
+
+  let svg = `
+    <rect
       x="${x}"
       y="${y}"
+      width="${width}"
+      height="${height}"
+      rx="26"
+      fill="${
+        dark
+          ? colors.accentSoft
+          : colors.accentSoft
+      }"
+      stroke="${accent}"
+      stroke-width="2"
+    />
+
+    <rect
+      x="${x + 22}"
+      y="${y + 18}"
+      width="6"
+      height="${
+        height - 36
+      }"
+      rx="3"
+      fill="${accent}"
+    />
+
+    <text
+      x="${x + boxPadding + 8}"
+      y="${y + boxPadding + 2}"
       font-family="Arial, Helvetica, sans-serif"
       font-size="${labelSize}px"
       font-weight="900"
-      fill="${labelColor}"
-      letter-spacing="1"
+      fill="${accent}"
+      letter-spacing="2"
     >
-      ${escapeXml(label)}
+      DESCRIPTION
     </text>
   `;
 
-  // Value.
-  lines.forEach(
+  fit.lines.forEach(
     (line, index) => {
       svg += `
         <text
-          x="${x}"
+          x="${x + boxPadding + 8}"
           y="${
             y +
-            lineGap +
+            boxPadding +
+            42 +
             index *
-              valueLineHeight
+              fit.lineHeight
           }"
           font-family="Arial, Helvetica, sans-serif"
-          font-size="${valueSize}px"
-          font-weight="500"
-          fill="${valueColor}"
+          font-size="${fit.fontSize}px"
+          font-weight="600"
+          fill="${textColor}"
         >
           ${escapeXml(line)}
         </text>
@@ -1199,20 +1957,410 @@ function fieldBlock(
     }
   );
 
-  const height =
-    lineGap +
-    lines.length *
-      valueLineHeight +
-    18;
-
-  return {
-    svg,
-    height,
-  };
+  return svg;
 }
 
 // ======================================================
-// CONTENT
+// BENEFITS
+// ======================================================
+
+function getBenefits(
+  fields
+) {
+  const benefits = [];
+
+  if (
+    cleanText(
+      fields.activeIngredient
+    )
+  ) {
+    benefits.push(
+      `Active: ${cleanText(
+        fields.activeIngredient
+      )}`
+    );
+  }
+
+  if (
+    cleanText(
+      fields.targetPests
+    )
+  ) {
+    benefits.push(
+      `Targets: ${cleanText(
+        fields.targetPests
+      )}`
+    );
+  }
+
+  if (
+    cleanText(
+      fields.crops
+    )
+  ) {
+    benefits.push(
+      `Crops: ${cleanText(
+        fields.crops
+      )}`
+    );
+  }
+
+  if (
+    cleanText(
+      fields.benefit1
+    )
+  ) {
+    benefits.push(
+      cleanText(
+        fields.benefit1
+      )
+    );
+  }
+
+  if (
+    cleanText(
+      fields.benefit2
+    )
+  ) {
+    benefits.push(
+      cleanText(
+        fields.benefit2
+      )
+    );
+  }
+
+  if (
+    cleanText(
+      fields.benefit3
+    )
+  ) {
+    benefits.push(
+      cleanText(
+        fields.benefit3
+      )
+    );
+  }
+
+  if (
+    cleanText(
+      fields.benefit4
+    )
+  ) {
+    benefits.push(
+      cleanText(
+        fields.benefit4
+      )
+    );
+  }
+
+  return benefits.slice(
+    0,
+    4
+  );
+}
+
+// ======================================================
+// BENEFITS BOX
+// ======================================================
+
+function drawBenefits(
+  x,
+  y,
+  width,
+  height,
+  benefits,
+  colors,
+  textColor,
+  accent
+) {
+  if (
+    !benefits ||
+    !benefits.length
+  ) {
+    return '';
+  }
+
+  const gap = 18;
+
+  const columnW =
+    (width - gap) / 2;
+
+  const rowH =
+    Math.max(
+      62,
+      (height - 16) / 2
+    );
+
+  let svg = `
+    <text
+      x="${x}"
+      y="${y + 22}"
+      font-family="Arial, Helvetica, sans-serif"
+      font-size="14px"
+      font-weight="900"
+      fill="${accent}"
+      letter-spacing="2"
+    >
+      KEY BENEFITS
+    </text>
+  `;
+
+  benefits.forEach(
+    (benefit, index) => {
+      const column =
+        index % 2;
+
+      const row =
+        Math.floor(
+          index / 2
+        );
+
+      const itemX =
+        x +
+        column *
+          (columnW + gap);
+
+      const itemY =
+        y +
+        38 +
+        row *
+          rowH;
+
+      svg += `
+        <rect
+          x="${itemX}"
+          y="${itemY}"
+          width="${columnW}"
+          height="${rowH - 10}"
+          rx="18"
+          fill="${colors.accentSoft}"
+        />
+
+        <circle
+          cx="${itemX + 28}"
+          cy="${itemY + 27}"
+          r="14"
+          fill="${accent}"
+        />
+
+        <text
+          x="${itemX + 28}"
+          y="${itemY + 33}"
+          font-family="Arial, Helvetica, sans-serif"
+          font-size="18px"
+          font-weight="900"
+          fill="#FFFFFF"
+          text-anchor="middle"
+        >
+          ✓
+        </text>
+      `;
+
+      const lines =
+        wrapText(
+          benefit,
+          columnW - 65,
+          17
+        );
+
+      const limited =
+        truncateLines(
+          lines,
+          2
+        );
+
+      limited.forEach(
+        (line, lineIndex) => {
+          svg += `
+            <text
+              x="${itemX + 52}"
+              y="${
+                itemY +
+                25 +
+                lineIndex * 21
+              }"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="17px"
+              font-weight="700"
+              fill="${textColor}"
+            >
+              ${escapeXml(line)}
+            </text>
+          `;
+        }
+      );
+    }
+  );
+
+  return svg;
+}
+
+// ======================================================
+// USAGE BOX
+// ======================================================
+
+function drawUsageBox(
+  x,
+  y,
+  width,
+  height,
+  usage,
+  colors,
+  textColor,
+  accent,
+  dark
+) {
+  if (!cleanText(usage)) {
+    return '';
+  }
+
+  const padding = 28;
+
+  const titleSize =
+    height >= 230
+      ? 17
+      : 14;
+
+  const availableHeight =
+    height -
+    padding * 2 -
+    45;
+
+  const fit =
+    fitDescription(
+      usage,
+      width -
+        padding * 2,
+      availableHeight,
+      height >= 300
+        ? 27
+        : 24,
+      21
+    );
+
+  let svg = `
+    <rect
+      x="${x}"
+      y="${y}"
+      width="${width}"
+      height="${height}"
+      rx="26"
+      fill="${dark
+        ? colors.accentSoft
+        : colors.panel}"
+      stroke="${accent}"
+      stroke-width="2"
+    />
+
+    <rect
+      x="${x}"
+      y="${y}"
+      width="${width}"
+      height="8"
+      rx="4"
+      fill="${accent}"
+    />
+
+    <text
+      x="${x + padding}"
+      y="${y + padding + 8}"
+      font-family="Arial, Helvetica, sans-serif"
+      font-size="${titleSize}px"
+      font-weight="900"
+      fill="${accent}"
+      letter-spacing="2"
+    >
+      USAGE / MIXING INSTRUCTIONS
+    </text>
+  `;
+
+  fit.lines.forEach(
+    (line, index) => {
+      svg += `
+        <text
+          x="${x + padding}"
+          y="${
+            y +
+            padding +
+            55 +
+            index *
+              fit.lineHeight
+          }"
+          font-family="Arial, Helvetica, sans-serif"
+          font-size="${fit.fontSize}px"
+          font-weight="600"
+          fill="${textColor}"
+        >
+          ${escapeXml(line)}
+        </text>
+      `;
+    }
+  );
+
+  return svg;
+}
+
+// ======================================================
+// PRICE / OFFER
+// ======================================================
+
+function drawPriceOffer(
+  x,
+  y,
+  width,
+  height,
+  promoText,
+  accent
+) {
+  if (!cleanText(promoText)) {
+    return '';
+  }
+
+  return `
+    <rect
+      x="${x}"
+      y="${y}"
+      width="${width}"
+      height="${height}"
+      rx="24"
+      fill="${accent}"
+    />
+
+    <text
+      x="${x + 28}"
+      y="${y + 35}"
+      font-family="Arial, Helvetica, sans-serif"
+      font-size="14px"
+      font-weight="800"
+      fill="#FFFFFF"
+      letter-spacing="2"
+    >
+      OFFER
+    </text>
+
+    <text
+      x="${x + 28}"
+      y="${y + 72}"
+      font-family="Arial, Helvetica, sans-serif"
+      font-size="${
+        height >= 120
+          ? 29
+          : 24
+      }px"
+      font-weight="900"
+      fill="#FFFFFF"
+    >
+      ${escapeXml(
+        cleanText(
+          promoText
+        )
+      )}
+    </text>
+  `;
+}
+
+// ======================================================
+// MAIN CONTENT
 // ======================================================
 
 function drawContent(
@@ -1224,71 +2372,57 @@ function drawContent(
   fields,
   theme
 ) {
-  const {
-    productName,
-    description,
-    activeIngredient,
-    targetPests,
-    crops,
-    usage,
-    promoText,
-  } = fields;
-
   const dark =
-    template === 'boldProduct' ||
-    template === 'premiumAgri';
-
-  const titleColor =
-    dark
-      ? '#FFFFFF'
-      : colors.accent;
+    template ===
+      'boldProduct' ||
+    template ===
+      'premiumAgri';
 
   const textColor =
     dark
-      ? '#F3F8F3'
+      ? '#F5FFF5'
       : colors.text;
 
-  const muted =
-    dark
-      ? '#DCEBDD'
-      : colors.text;
+  const accent =
+    colors.accent;
+
+  const panel =
+    colors.panel;
 
   const border =
     dark
       ? 'rgba(255,255,255,0.18)'
       : colors.border;
 
-  const panel =
-    colors.panel;
+  const contentX =
+    layout.contentX;
 
-  const p = 30;
+  const contentY =
+    layout.contentY;
+
+  const contentW =
+    layout.contentW;
+
+  const contentH =
+    layout.contentH;
+
+  const gap = 22;
+
+  const p = 26;
 
   let svg = '';
 
   // ====================================================
-  // PANELS
+  // MAIN CONTENT PANEL
   // ====================================================
 
   svg += `
     <rect
-      x="${layout.leftX}"
-      y="${layout.contentY}"
-      width="${layout.leftW}"
-      height="${layout.contentH}"
-      rx="28"
-      fill="${panel}"
-      stroke="${border}"
-      stroke-width="2"
-    />
-  `;
-
-  svg += `
-    <rect
-      x="${layout.rightX}"
-      y="${layout.contentY}"
-      width="${layout.rightW}"
-      height="${layout.contentH}"
-      rx="28"
+      x="${contentX}"
+      y="${contentY}"
+      width="${contentW}"
+      height="${contentH}"
+      rx="32"
       fill="${panel}"
       stroke="${border}"
       stroke-width="2"
@@ -1296,46 +2430,49 @@ function drawContent(
   `;
 
   // ====================================================
-  // PRODUCT NAME
+  // PRODUCT TITLE
   // ====================================================
+
+  const titleAreaX =
+    contentX + p;
+
+  const titleAreaW =
+    contentW -
+    p * 2;
 
   const titleSize =
     height >= 1800
-      ? 50
-      : width >= 1800
-        ? 48
-        : 44;
-
-  const detailWidth =
-    layout.leftW -
-    p * 2;
+      ? 54
+      : 46;
 
   const titleLines =
     truncateLines(
       wrapText(
-        productName,
-        detailWidth,
+        fields.productName,
+        titleAreaW * 0.72,
         titleSize
       ),
-      3
+      2
     );
 
   titleLines.forEach(
     (line, index) => {
       svg += `
         <text
-          x="${layout.leftX + p}"
+          x="${titleAreaX}"
           y="${
-            layout.contentY +
-            62 +
+            contentY +
+            60 +
             index *
               titleSize *
-              1.06
+              1.03
           }"
           font-family="Arial, Helvetica, sans-serif"
           font-size="${titleSize}px"
           font-weight="900"
-          fill="${titleColor}"
+          fill="${dark
+            ? '#FFFFFF'
+            : textColor}"
         >
           ${escapeXml(line)}
         </text>
@@ -1343,262 +2480,62 @@ function drawContent(
     }
   );
 
-  // ====================================================
-  // CONTENT HEIGHT
-  // ====================================================
-
   const titleHeight =
     titleLines.length *
     titleSize *
-    1.06;
+    1.03;
 
-  let y =
-    layout.contentY +
-    62 +
+  const imageY =
+    contentY +
     titleHeight +
-    24;
-
-  // ====================================================
-  // DESCRIPTION
-  //
-  // DESCRIPTION GETS MORE SPACE.
-  // ====================================================
-
-  if (description) {
-    const descriptionSize =
-      height >= 1800
-        ? 23
-        : 21;
-
-    const descriptionLines =
-      height >= 1800
-        ? 6
-        : 5;
-
-    const result =
-      fieldBlock(
-        'DESCRIPTION',
-        description,
-        layout.leftX + p,
-        y,
-        detailWidth,
-        colors,
-        {
-          labelSize:
-            height >= 1800
-              ? 15
-              : 14,
-
-          valueSize:
-            descriptionSize,
-
-          maxLines:
-            descriptionLines,
-
-          labelColor:
-            titleColor,
-
-          valueColor:
-            textColor,
-
-          lineGap: 27,
-
-          valueLineHeight:
-            Math.round(
-              descriptionSize * 1.28
-            ),
-        }
-      );
-
-    svg += result.svg;
-
-    y += result.height + 8;
-  }
-
-  // ====================================================
-  // ACTIVE INGREDIENT
-  // ====================================================
-
-  if (activeIngredient) {
-    const result =
-      fieldBlock(
-        'ACTIVE INGREDIENT',
-        activeIngredient,
-        layout.leftX + p,
-        y,
-        detailWidth,
-        colors,
-        {
-          labelSize: 13,
-          valueSize:
-            height >= 1800
-              ? 20
-              : 18,
-          maxLines: 2,
-          labelColor: titleColor,
-          valueColor: textColor,
-          lineGap: 23,
-        }
-      );
-
-    svg += result.svg;
-
-    y += result.height + 5;
-  }
-
-  // ====================================================
-  // TARGETS
-  // ====================================================
-
-  if (targetPests) {
-    const result =
-      fieldBlock(
-        'TARGET PESTS / DISEASES',
-        targetPests,
-        layout.leftX + p,
-        y,
-        detailWidth,
-        colors,
-        {
-          labelSize: 13,
-          valueSize:
-            height >= 1800
-              ? 20
-              : 18,
-          maxLines: 2,
-          labelColor: titleColor,
-          valueColor: textColor,
-          lineGap: 23,
-        }
-      );
-
-    svg += result.svg;
-
-    y += result.height + 5;
-  }
-
-  // ====================================================
-  // CROPS
-  // ====================================================
-
-  if (crops) {
-    const result =
-      fieldBlock(
-        'TARGET CROPS',
-        crops,
-        layout.leftX + p,
-        y,
-        detailWidth,
-        colors,
-        {
-          labelSize: 13,
-          valueSize:
-            height >= 1800
-              ? 20
-              : 18,
-          maxLines: 2,
-          labelColor: titleColor,
-          valueColor: textColor,
-          lineGap: 23,
-        }
-      );
-
-    svg += result.svg;
-
-    y += result.height + 5;
-  }
-
-  // ====================================================
-  // USAGE
-  //
-  // USAGE USES THE LOWER PART OF THE PANEL.
-  // ====================================================
-
-  if (usage) {
-    const usageY =
-      Math.min(
-        y,
-        layout.contentY +
-          layout.contentH -
-          205
-      );
-
-    const usageSize =
-      height >= 1800
-        ? 21
-        : 19;
-
-    const usageLines =
-      height >= 1800
-        ? 5
-        : 4;
-
-    const result =
-      fieldBlock(
-        'USAGE / APPLICATION',
-        usage,
-        layout.leftX + p,
-        usageY,
-        detailWidth,
-        colors,
-        {
-          labelSize: 14,
-          valueSize: usageSize,
-          maxLines: usageLines,
-          labelColor: titleColor,
-          valueColor: textColor,
-          lineGap: 25,
-          valueLineHeight:
-            Math.round(
-              usageSize * 1.28
-            ),
-        }
-      );
-
-    svg += result.svg;
-  }
+    82;
 
   // ====================================================
   // PRODUCT IMAGE CARD
   // ====================================================
 
-  const imagePad = 22;
+  const imageX =
+    contentX + p;
 
-  const imageCardX =
-    layout.rightX +
-    imagePad;
+  const imageW =
+    contentW -
+    p * 2;
 
-  const imageCardY =
-    layout.contentY +
-    imagePad;
-
-  const imageCardW =
-    layout.rightW -
-    imagePad * 2;
-
-  const imageCardH =
+  const imageH =
     Math.round(
-      layout.contentH * 0.70
+      contentH *
+      (height >= 1800
+        ? 0.31
+        : 0.29)
     );
 
   svg += `
     <rect
-      x="${imageCardX}"
-      y="${imageCardY}"
-      width="${imageCardW}"
-      height="${imageCardH}"
-      rx="24"
+      x="${imageX}"
+      y="${imageY}"
+      width="${imageW}"
+      height="${imageH}"
+      rx="28"
       fill="#FFFFFF"
-      stroke="${rgba(theme, 0.10)}"
+      stroke="${rgba(
+        theme,
+        0.15
+      )}"
       stroke-width="2"
     />
-  `;
 
-  // Small product label.
-  svg += `
+    <rect
+      x="${imageX + 18}"
+      y="${imageY + 18}"
+      width="${imageW - 36}"
+      height="${imageH - 36}"
+      rx="22"
+      fill="#FFFFFF"
+    />
+
     <text
-      x="${imageCardX + 22}"
-      y="${imageCardY + 34}"
+      x="${imageX + 30}"
+      y="${imageY + 34}"
       font-family="Arial, Helvetica, sans-serif"
       font-size="13px"
       font-weight="900"
@@ -1610,82 +2547,231 @@ function drawContent(
   `;
 
   // ====================================================
-  // PRODUCT IMAGE AREA
+  // DESCRIPTION
   // ====================================================
 
-  const imageAreaTop =
-    imageCardY + 48;
+  const descriptionY =
+    imageY +
+    imageH +
+    gap;
 
-  const imageAreaHeight =
-    imageCardH - 58;
+  const descriptionH =
+    Math.round(
+      contentH *
+      (height >= 1800
+        ? 0.22
+        : 0.21)
+    );
 
-  // Invisible SVG placeholder.
-  // Actual transparent product image is composited
-  // later by Sharp.
-  svg += `
+  svg += drawDescriptionBox(
+    imageX,
+    descriptionY,
+    imageW,
+    descriptionH,
+    fields.description,
+    colors,
+    textColor,
+    accent,
+    dark
+  );
+
+  // ====================================================
+  // BENEFITS
+  // ====================================================
+
+  const benefits =
+    getBenefits(fields);
+
+  const benefitsY =
+    descriptionY +
+    descriptionH +
+    gap;
+
+  const benefitsH =
+    Math.round(
+      contentH *
+      (height >= 1800
+        ? 0.13
+        : 0.15)
+    );
+
+  svg += drawBenefits(
+    imageX,
+    benefitsY,
+    imageW,
+    benefitsH,
+    benefits,
+    colors,
+    textColor,
+    accent
+  );
+
+  // ====================================================
+  // USAGE
+  // ====================================================
+
+  const usageY =
+    benefitsY +
+    benefitsH +
+    gap;
+
+  const usageBottom =
+    contentY +
+    contentH -
+    p;
+
+  const usageH =
+    Math.max(
+      100,
+      usageBottom -
+      usageY
+    );
+
+  svg += drawUsageBox(
+    imageX,
+    usageY,
+    imageW,
+    usageH,
+    fields.usage,
+    colors,
+    textColor,
+    accent,
+    dark
+  );
+
+  return svg;
+}
+
+// ======================================================
+// FOOTER
+// ======================================================
+
+function drawFooter(
+  width,
+  height,
+  layout,
+  colors,
+  phone,
+  location,
+  email
+) {
+  const footerY =
+    layout.footerY;
+
+  const footerH =
+    height -
+    footerY;
+
+  let svg = `
     <rect
-      x="${imageCardX + 8}"
-      y="${imageAreaTop}"
-      width="${imageCardW - 16}"
-      height="${imageAreaHeight}"
-      fill="#FFFFFF"
-      opacity="0"
+      x="0"
+      y="${footerY}"
+      width="${width}"
+      height="${footerH}"
+      fill="${colors.footer}"
     />
   `;
 
-  // ====================================================
-  // LOWER RIGHT INFORMATION
-  // ====================================================
+  const items = [];
 
-  const infoY =
-    imageCardY +
-    imageCardH +
-    34;
-
-  if (promoText) {
-    const promoH =
-      Math.min(
-        125,
-        Math.max(
-          88,
-          layout.contentH * 0.16
-        )
-      );
-
-    const promoY =
-      Math.min(
-        infoY,
-        layout.contentY +
-          layout.contentH -
-          promoH -
-          18
-      );
-
-    svg += `
-      <rect
-        x="${layout.rightX + 18}"
-        y="${promoY}"
-        width="${layout.rightW - 36}"
-        height="${promoH}"
-        rx="20"
-        fill="${theme}"
-      />
-    `;
-
-    svg += textBlock(
-      promoText,
-      layout.rightX + 36,
-      promoY + 38,
-      layout.rightW - 72,
-      22,
-      '#FFFFFF',
-      {
-        weight: '900',
-        maxLines: 3,
-        lineHeight: 29,
-      }
-    );
+  if (phone) {
+    items.push({
+      label: 'CALL',
+      value: phone,
+    });
   }
+
+  if (phone) {
+    items.push({
+      label: 'WHATSAPP',
+      value: phone,
+    });
+  }
+
+  if (location) {
+    items.push({
+      label: 'LOCATION',
+      value: location,
+    });
+  }
+
+  if (email && items.length < 3) {
+    items.push({
+      label: 'EMAIL',
+      value: email,
+    });
+  }
+
+  const count =
+    Math.max(
+      1,
+      items.length
+    );
+
+  const columnW =
+    width / count;
+
+  items.forEach(
+    (item, index) => {
+      const centerX =
+        columnW *
+        index +
+        columnW / 2;
+
+      svg += `
+        <text
+          x="${centerX}"
+          y="${footerY + 34}"
+          font-family="Arial, Helvetica, sans-serif"
+          font-size="12px"
+          font-weight="900"
+          fill="${colors.accent}"
+          text-anchor="middle"
+          letter-spacing="2"
+        >
+          ${escapeXml(
+            item.label
+          )}
+        </text>
+      `;
+
+      const valueLines =
+        wrapText(
+          item.value,
+          columnW - 50,
+          17
+        );
+
+      const lines =
+        truncateLines(
+          valueLines,
+          2
+        );
+
+      lines.forEach(
+        (line, lineIndex) => {
+          svg += `
+            <text
+              x="${centerX}"
+              y="${
+                footerY +
+                62 +
+                lineIndex *
+                  21
+              }"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="17px"
+              font-weight="700"
+              fill="${colors.text}"
+              text-anchor="middle"
+            >
+              ${escapeXml(line)}
+            </text>
+          `;
+        }
+      );
+    }
+  );
 
   return svg;
 }
@@ -1733,22 +2819,33 @@ router.post(
         usage,
         promoText,
 
+        benefit1,
+        benefit2,
+        benefit3,
+        benefit4,
+
         template,
         size,
       } = req.body || {};
 
       // ==================================================
-      // NORMALIZE INPUT
+      // NORMALIZE
       // ==================================================
 
       const finalBusinessName =
-        cleanText(businessName);
+        cleanText(
+          businessName
+        );
 
       const finalProductName =
-        cleanText(productName);
+        cleanText(
+          productName
+        );
 
       const finalThemeColor =
-        normalizeColor(themeColor);
+        normalizeColor(
+          themeColor
+        );
 
       const requestedTemplate =
         cleanText(template);
@@ -1814,7 +2911,7 @@ router.post(
       );
 
       console.log(
-        '📢 PRODUCT POSTER GENERATION'
+        '📢 NEW PRODUCT POSTER GENERATION'
       );
 
       console.log(
@@ -1855,8 +2952,7 @@ router.post(
       // SVG
       //
       // IMPORTANT:
-      // Do NOT put an XML declaration before <svg>.
-      // This avoids the GLib/XML declaration error.
+      // There is intentionally NO XML declaration here.
       // ==================================================
 
       let svg = `
@@ -1868,26 +2964,24 @@ router.post(
         >
       `;
 
-      svg += '<defs>';
-
       svg += `
-        <filter
-          id="shadow"
-          x="-20%"
-          y="-20%"
-          width="140%"
-          height="140%"
-        >
-          <feDropShadow
-            dx="0"
-            dy="6"
-            stdDeviation="8"
-            flood-opacity="0.16"
-          />
-        </filter>
+        <defs>
+          <filter
+            id="posterShadow"
+            x="-20%"
+            y="-20%"
+            width="140%"
+            height="140%"
+          >
+            <feDropShadow
+              dx="0"
+              dy="5"
+              stdDeviation="7"
+              flood-opacity="0.14"
+            />
+          </filter>
+        </defs>
       `;
-
-      svg += '</defs>';
 
       // ==================================================
       // BACKGROUND
@@ -1912,7 +3006,8 @@ router.post(
         finalTemplate,
         colors,
         finalBusinessName,
-        cleanText(location)
+        cleanText(location),
+        cleanText(promoText)
       );
 
       // ==================================================
@@ -1930,13 +3025,19 @@ router.post(
             finalProductName,
 
           description:
-            cleanText(description),
+            cleanText(
+              description
+            ),
 
           activeIngredient:
-            cleanText(activeIngredient),
+            cleanText(
+              activeIngredient
+            ),
 
           targetPests:
-            cleanText(targetPests),
+            cleanText(
+              targetPests
+            ),
 
           crops:
             cleanText(crops),
@@ -1945,7 +3046,29 @@ router.post(
             cleanText(usage),
 
           promoText:
-            cleanText(promoText),
+            cleanText(
+              promoText
+            ),
+
+          benefit1:
+            cleanText(
+              benefit1
+            ),
+
+          benefit2:
+            cleanText(
+              benefit2
+            ),
+
+          benefit3:
+            cleanText(
+              benefit3
+            ),
+
+          benefit4:
+            cleanText(
+              benefit4
+            ),
         },
         finalThemeColor
       );
@@ -1954,66 +3077,15 @@ router.post(
       // FOOTER
       // ==================================================
 
-      const footerY =
-        layout.footerY;
-
-      svg += `
-        <rect
-          x="0"
-          y="${footerY}"
-          width="${width}"
-          height="${height - footerY}"
-          fill="${colors.footer}"
-        />
-      `;
-
-      const contacts = [];
-
-      if (cleanText(phone)) {
-        contacts.push(
-          `Tel: ${cleanText(phone)}`
-        );
-      }
-
-      if (cleanText(email)) {
-        contacts.push(
-          `Email: ${cleanText(email)}`
-        );
-      }
-
-      if (contacts.length) {
-        svg += textBlock(
-          contacts.join(
-            '   •   '
-          ),
-          width / 2,
-          footerY + 42,
-          width -
-            layout.margin * 2,
-          18,
-          colors.text,
-          {
-            weight: '700',
-            maxLines: 2,
-            lineHeight: 25,
-            anchor: 'middle',
-          }
-        );
-      }
-
-      svg += `
-        <text
-          x="${width / 2}"
-          y="${height - 18}"
-          font-family="Arial, Helvetica, sans-serif"
-          font-size="12px"
-          font-weight="600"
-          fill="${colors.muted}"
-          text-anchor="middle"
-        >
-          Agricultural Product
-        </text>
-      `;
+      svg += drawFooter(
+        width,
+        height,
+        layout,
+        colors,
+        cleanText(phone),
+        cleanText(location),
+        cleanText(email)
+      );
 
       svg += '</svg>';
 
@@ -2031,14 +3103,16 @@ router.post(
       // ==================================================
 
       const logoBuffer =
-        dataUriToBuffer(logo);
+        dataUriToBuffer(
+          logo
+        );
 
       if (logoBuffer) {
         try {
           const logoBox =
             finalSize === 'story'
-              ? 165
-              : 140;
+              ? 180
+              : 150;
 
           const logoProcessed =
             await sharp(
@@ -2071,9 +3145,7 @@ router.post(
                   layout.margin,
 
                 left:
-                  width -
-                  layout.margin -
-                  logoBox,
+                  layout.margin,
               },
             ]);
 
@@ -2087,9 +3159,6 @@ router.post(
 
       // ==================================================
       // PRODUCT IMAGE
-      //
-      // BIGGER THAN THE OLD VERSION.
-      // BACKGROUND IS REMOVED.
       // ==================================================
 
       const productBuffer =
@@ -2099,25 +3168,79 @@ router.post(
 
       if (productBuffer) {
         try {
-          const imagePad = 22;
+          // ------------------------------------------------
+          // Must match the SVG product card.
+          // ------------------------------------------------
 
-          const cardW =
+          const contentX =
+            layout.contentX;
+
+          const contentY =
+            layout.contentY;
+
+          const contentW =
+            layout.contentW;
+
+          const p = 26;
+
+          const imageX =
+            contentX + p;
+
+          const imageW =
+            contentW -
+            p * 2;
+
+          const titleSize =
+            height >= 1800
+              ? 54
+              : 46;
+
+          const titleLines =
+            truncateLines(
+              wrapText(
+                finalProductName,
+                imageW * 0.72,
+                titleSize
+              ),
+              2
+            );
+
+          const titleHeight =
+            titleLines.length *
+            titleSize *
+            1.03;
+
+          const imageY =
+            contentY +
+            titleHeight +
+            82;
+
+          const imageH =
+            Math.round(
+              layout.contentH *
+              (height >= 1800
+                ? 0.31
+                : 0.29)
+            );
+
+          // ------------------------------------------------
+          // Actual usable image area.
+          // ------------------------------------------------
+
+          const innerPadding = 28;
+
+          const productAreaW =
             Math.max(
               200,
-              layout.rightW -
-                imagePad * 2 -
-                16
+              imageW -
+              innerPadding * 2
             );
 
-          const imageCardH =
-            Math.round(
-              layout.contentH * 0.70
-            );
-
-          const cardH =
+          const productAreaH =
             Math.max(
-              240,
-              imageCardH - 58
+              200,
+              imageH -
+              innerPadding * 2
             );
 
           console.log(
@@ -2125,15 +3248,15 @@ router.post(
           );
 
           console.log(
-            'Product image area:',
-            `${cardW}x${cardH}`
+            'Product area:',
+            `${productAreaW}x${productAreaH}`
           );
 
           const processed =
             await processProductImage(
               productBuffer,
-              cardW,
-              cardH
+              productAreaW,
+              productAreaH
             );
 
           const metadata =
@@ -2143,29 +3266,26 @@ router.post(
 
           const actualW =
             metadata.width ||
-            cardW;
+            productAreaW;
 
           const actualH =
             metadata.height ||
-            cardH;
+            productAreaH;
 
-          // Center product image in card.
           const left =
             Math.round(
-              layout.rightX +
-              imagePad +
-              8 +
-              (cardW -
+              imageX +
+              innerPadding +
+              (productAreaW -
                 actualW) /
                 2
             );
 
           const top =
             Math.round(
-              layout.contentY +
-              imagePad +
-              48 +
-              (cardH -
+              imageY +
+              innerPadding +
+              (productAreaH -
                 actualH) /
                 2
             );
@@ -2183,7 +3303,12 @@ router.post(
             ]);
 
           console.log(
-            '✅ Product image processed'
+            '✅ Product image added'
+          );
+
+          console.log(
+            'Final product:',
+            `${actualW}x${actualH}`
           );
 
         } catch (error) {
