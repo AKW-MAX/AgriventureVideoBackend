@@ -1,3 +1,4 @@
+
 const express = require('express');
 const sharp = require('sharp');
 const fs = require('fs');
@@ -9,6 +10,7 @@ console.log('==========================================');
 console.log('🎨 POSTER ROUTER LOADED');
 console.log('Poster route file:', __filename);
 console.log('==========================================');
+
 
 // ======================================================
 // OUTPUT DIRECTORY
@@ -24,6 +26,7 @@ const OUTPUT_DIR = path.join(
 if (!fs.existsSync(OUTPUT_DIR)) {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 }
+
 
 // ======================================================
 // POSTER SIZES
@@ -51,6 +54,7 @@ const SIZES = {
   },
 };
 
+
 // ======================================================
 // AVAILABLE TEMPLATES
 // ======================================================
@@ -66,24 +70,19 @@ const TEMPLATES = new Set([
   'minimal',
 ]);
 
+
 // ======================================================
-// BASIC HELPERS
+// TEXT HELPERS
 // ======================================================
 
 function cleanText(value) {
-  if (
-    value === undefined ||
-    value === null
-  ) {
+  if (value === undefined || value === null) {
     return '';
   }
 
   return String(value).trim();
 }
 
-// ======================================================
-// XML ESCAPING
-// ======================================================
 
 function escapeXml(value) {
   return cleanText(value)
@@ -94,9 +93,6 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;');
 }
 
-// ======================================================
-// SAFE FILE NAME
-// ======================================================
 
 function safeFileName(value) {
   return cleanText(value)
@@ -106,17 +102,20 @@ function safeFileName(value) {
     .toLowerCase();
 }
 
+
 // ======================================================
-// COLOR HELPERS
+// COLOUR HELPERS
 // ======================================================
 
 function normalizeColor(value) {
   const color = cleanText(value);
 
+  // Full HEX
   if (/^#[0-9a-fA-F]{6}$/.test(color)) {
     return color;
   }
 
+  // Short HEX
   if (/^#[0-9a-fA-F]{3}$/.test(color)) {
     return (
       '#' +
@@ -126,76 +125,83 @@ function normalizeColor(value) {
     );
   }
 
+  // Allow common CSS colour names
+  const namedColors = {
+    green: '#2E7D32',
+    darkgreen: '#1B5E20',
+    'dark-green': '#1B5E20',
+    lightgreen: '#8BC34A',
+    'light-green': '#8BC34A',
+    yellow: '#F9A825',
+    orange: '#FF8F00',
+    red: '#D32F2F',
+    black: '#000000',
+    white: '#FFFFFF',
+    blue: '#1976D2',
+    brown: '#795548',
+  };
+
+  const named = namedColors[color.toLowerCase()];
+
+  if (named) {
+    return named;
+  }
+
+  // Agriventure default green
   return '#2E7D32';
 }
 
+
 function hexToRgb(hex) {
-  const color =
-    normalizeColor(hex).slice(1);
+  const c = normalizeColor(hex).slice(1);
 
   return {
-    r: parseInt(
-      color.slice(0, 2),
-      16
-    ),
-
-    g: parseInt(
-      color.slice(2, 4),
-      16
-    ),
-
-    b: parseInt(
-      color.slice(4, 6),
-      16
-    ),
+    r: parseInt(c.slice(0, 2), 16),
+    g: parseInt(c.slice(2, 4), 16),
+    b: parseInt(c.slice(4, 6), 16),
   };
 }
 
-function rgba(hex, alpha) {
-  const rgb = hexToRgb(hex);
 
-  return `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
+function rgba(hex, alpha) {
+  const c = hexToRgb(hex);
+
+  return `rgba(${c.r},${c.g},${c.b},${alpha})`;
 }
+
 
 // ======================================================
 // TEXT WRAPPING
 // ======================================================
 
-function wrapText(
-  text,
-  width,
-  fontSize
-) {
+function wrapText(text, width, fontSize) {
   const value = cleanText(text);
 
   if (!value) {
     return [];
   }
 
-  const averageCharWidth =
-    Math.max(
-      fontSize * 0.52,
-      7
-    );
+  const averageCharWidth = Math.max(
+    fontSize * 0.53,
+    7
+  );
 
-  const maxChars =
-    Math.max(
-      8,
-      Math.floor(
-        width /
-        averageCharWidth
-      )
-    );
+  const maxChars = Math.max(
+    8,
+    Math.floor(width / averageCharWidth)
+  );
 
-  const words =
-    value.split(/\s+/);
+  const words = value.split(/\s+/);
 
   const lines = [];
 
   let line = '';
 
   for (const word of words) {
+
+    // Break very long words
     if (word.length > maxChars) {
+
       if (line) {
         lines.push(line);
         line = '';
@@ -207,27 +213,21 @@ function wrapText(
         i += maxChars
       ) {
         lines.push(
-          word.slice(
-            i,
-            i + maxChars
-          )
+          word.slice(i, i + maxChars)
         );
       }
 
       continue;
     }
 
-    const candidate =
-      line
-        ? `${line} ${word}`
-        : word;
+    const candidate = line
+      ? `${line} ${word}`
+      : word;
 
-    if (
-      candidate.length <=
-      maxChars
-    ) {
+    if (candidate.length <= maxChars) {
       line = candidate;
     } else {
+
       if (line) {
         lines.push(line);
       }
@@ -243,35 +243,24 @@ function wrapText(
   return lines;
 }
 
-// ======================================================
-// TRUNCATE LINES
-// ======================================================
 
-function truncateLines(
-  lines,
-  maxLines
-) {
-  if (
-    !maxLines ||
-    lines.length <= maxLines
-  ) {
+function truncateLines(lines, maxLines) {
+  if (lines.length <= maxLines) {
     return lines;
   }
 
-  const result =
-    lines.slice(0, maxLines);
+  const result = lines.slice(0, maxLines);
 
-  if (result.length) {
-    result[result.length - 1] =
-      `${result[result.length - 1]
-        .replace(/[.,;:!?-]+$/, '')}…`;
-  }
+  result[maxLines - 1] =
+    `${result[maxLines - 1]
+      .replace(/[.,;:!?-]+$/, '')}…`;
 
   return result;
 }
 
+
 // ======================================================
-// TEXT BLOCK
+// GENERIC TEXT BLOCK
 // ======================================================
 
 function textBlock(
@@ -283,63 +272,134 @@ function textBlock(
   fill,
   options = {}
 ) {
+
   const {
     weight = '400',
-    lineHeight =
-      Math.round(
-        fontSize * 1.35
-      ),
+    lineHeight = Math.round(fontSize * 1.35),
     maxLines = 4,
     anchor = 'start',
-    family =
-      'Arial, Helvetica, sans-serif',
+    family = 'Arial, Helvetica, sans-serif',
+    letterSpacing = 0,
   } = options;
 
-  const lines =
-    truncateLines(
-      wrapText(
-        text,
-        width,
-        fontSize
-      ),
-      maxLines
-    );
+  const lines = truncateLines(
+    wrapText(text, width, fontSize),
+    maxLines
+  );
 
   return lines
-    .map(
-      (line, index) => `
-        <text
-          x="${x}"
-          y="${
-            y +
-            index * lineHeight
-          }"
-          font-family="${family}"
-          font-size="${fontSize}px"
-          font-weight="${weight}"
-          fill="${fill}"
-          text-anchor="${anchor}"
-        >${escapeXml(line)}</text>
-      `
-    )
+    .map((line, i) => `
+      <text
+        x="${x}"
+        y="${y + i * lineHeight}"
+        font-family="${family}"
+        font-size="${fontSize}px"
+        font-weight="${weight}"
+        fill="${fill}"
+        text-anchor="${anchor}"
+        letter-spacing="${letterSpacing}px"
+      >
+        ${escapeXml(line)}
+      </text>
+    `)
     .join('');
 }
 
+
 // ======================================================
-// DATA URI -> BUFFER
+// LABEL + VALUE
 // ======================================================
 
-function dataUriToBuffer(
-  dataUri
+function labelValue(
+  label,
+  value,
+  x,
+  y,
+  width,
+  colors,
+  options = {}
 ) {
+
+  const {
+    labelSize = 17,
+    valueSize = 19,
+    maxLines = 2,
+    gap = 24,
+  } = options;
+
+  if (!cleanText(value)) {
+    return {
+      svg: '',
+      height: 0,
+    };
+  }
+
+  let svg = `
+    <text
+      x="${x}"
+      y="${y}"
+      font-family="Arial, Helvetica, sans-serif"
+      font-size="${labelSize}px"
+      font-weight="900"
+      fill="${colors.label}"
+      letter-spacing="0.5px"
+    >
+      ${escapeXml(label)}
+    </text>
+  `;
+
+  const valueY = y + gap;
+
+  svg += textBlock(
+    value,
+    x,
+    valueY,
+    width,
+    valueSize,
+    colors.value,
+    {
+      maxLines,
+      lineHeight: Math.round(
+        valueSize * 1.25
+      ),
+    }
+  );
+
+  const lineCount = Math.min(
+    wrapText(
+      value,
+      width,
+      valueSize
+    ).length,
+    maxLines
+  );
+
+  const h =
+    gap +
+    lineCount *
+      Math.round(valueSize * 1.25) +
+    15;
+
+  return {
+    svg,
+    height: h,
+  };
+}
+
+
+// ======================================================
+// BASE64 IMAGE CONVERTER
+// ======================================================
+
+function dataUriToBuffer(dataUri) {
+
   if (!dataUri) {
     return null;
   }
 
-  const match =
-    String(dataUri).match(
-      /^data:([^;]+);base64,(.+)$/s
-    );
+  const match = String(dataUri).match(
+    /^data:([^;]+);base64,(.+)$/s
+  );
 
   if (!match) {
     return null;
@@ -351,6 +411,7 @@ function dataUriToBuffer(
       'base64'
     );
   } catch (error) {
+
     console.log(
       '⚠️ Base64 conversion failed:',
       error.message
@@ -360,786 +421,76 @@ function dataUriToBuffer(
   }
 }
 
-// ======================================================
-// COLOR DISTANCE
-// ======================================================
-
-function colorDistance(
-  r1,
-  g1,
-  b1,
-  r2,
-  g2,
-  b2
-) {
-  return Math.sqrt(
-    Math.pow(r1 - r2, 2) +
-    Math.pow(g1 - g2, 2) +
-    Math.pow(b1 - b2, 2)
-  );
-}
 
 // ======================================================
-// EDGE BACKGROUND REMOVAL
-//
-// Removes background ONLY when it is connected to the
-// outer edges.
-//
-// This is important because we do NOT want to simply
-// remove every black pixel from the product.
+// POSTER LAYOUT
 // ======================================================
 
-async function removeEdgeBackground(
-  inputBuffer
-) {
-  try {
-    const prepared =
-      sharp(inputBuffer)
-        .ensureAlpha();
-
-    const metadata =
-      await prepared.metadata();
-
-    const width =
-      metadata.width || 1000;
-
-    const height =
-      metadata.height || 1000;
-
-    const raw =
-      await prepared
-        .raw()
-        .toBuffer();
-
-    const channels = 4;
-
-    // --------------------------------------------------
-    // Sample the four corners.
-    // --------------------------------------------------
-
-    const corners = [
-      [
-        raw[0],
-        raw[1],
-        raw[2],
-      ],
-
-      [
-        raw[
-          (width - 1) *
-            channels
-        ],
-        raw[
-          (width - 1) *
-            channels + 1
-        ],
-        raw[
-          (width - 1) *
-            channels + 2
-        ],
-      ],
-
-      [
-        raw[
-          ((height - 1) *
-            width) *
-            channels
-        ],
-        raw[
-          ((height - 1) *
-            width) *
-            channels + 1
-        ],
-        raw[
-          ((height - 1) *
-            width) *
-            channels + 2
-        ],
-      ],
-
-      [
-        raw[
-          ((height - 1) *
-            width +
-            (width - 1)) *
-            channels
-        ],
-        raw[
-          ((height - 1) *
-            width +
-            (width - 1)) *
-            channels + 1
-        ],
-        raw[
-          ((height - 1) *
-            width +
-            (width - 1)) *
-            channels + 2
-        ],
-      ],
-    ];
-
-    // --------------------------------------------------
-    // Determine whether the corners represent a
-    // white/light or black/dark background.
-    // --------------------------------------------------
-
-    const brightnessValues =
-      corners.map(
-        ([r, g, b]) =>
-          (r + g + b) / 3
-      );
-
-    const averageBrightness =
-      brightnessValues.reduce(
-        (sum, value) =>
-          sum + value,
-        0
-      ) /
-      brightnessValues.length;
-
-    const brightCorners =
-      brightnessValues.filter(
-        value => value >= 180
-      ).length;
-
-    const darkCorners =
-      brightnessValues.filter(
-        value => value <= 80
-      ).length;
-
-    let backgroundMode =
-      'none';
-
-    if (brightCorners >= 2) {
-      backgroundMode =
-        'light';
-    } else if (
-      darkCorners >= 2
-    ) {
-      backgroundMode =
-        'dark';
-    }
-
-    if (
-      backgroundMode ===
-      'none'
-    ) {
-      return inputBuffer;
-    }
-
-    // --------------------------------------------------
-    // Choose the average corner color.
-    // --------------------------------------------------
-
-    const selectedCorners =
-      corners.filter(
-        ([r, g, b]) => {
-          const brightness =
-            (r + g + b) / 3;
-
-          if (
-            backgroundMode ===
-            'light'
-          ) {
-            return (
-              brightness >= 170
-            );
-          }
-
-          return (
-            brightness <= 100
-          );
-        }
-      );
-
-    const sourceCorners =
-      selectedCorners.length
-        ? selectedCorners
-        : corners;
-
-    const bgColor =
-      sourceCorners.reduce(
-        (acc, color) => ({
-          r:
-            acc.r + color[0],
-          g:
-            acc.g + color[1],
-          b:
-            acc.b + color[2],
-        }),
-        {
-          r: 0,
-          g: 0,
-          b: 0,
-        }
-      );
-
-    bgColor.r /=
-      sourceCorners.length;
-
-    bgColor.g /=
-      sourceCorners.length;
-
-    bgColor.b /=
-      sourceCorners.length;
-
-    // --------------------------------------------------
-    // Flood fill from the outer edge.
-    //
-    // Only connected background pixels are removed.
-    // This protects black/white product details.
-    // --------------------------------------------------
-
-    const totalPixels =
-      width * height;
-
-    const visited =
-      new Uint8Array(
-        totalPixels
-      );
-
-    const queueX = [];
-    const queueY = [];
-
-    function addPixel(
-      x,
-      y
-    ) {
-      if (
-        x < 0 ||
-        y < 0 ||
-        x >= width ||
-        y >= height
-      ) {
-        return;
-      }
-
-      const index =
-        y * width + x;
-
-      if (
-        visited[index]
-      ) {
-        return;
-      }
-
-      visited[index] = 1;
-
-      queueX.push(x);
-      queueY.push(y);
-    }
-
-    // Add all four edges.
-    for (
-      let x = 0;
-      x < width;
-      x++
-    ) {
-      addPixel(x, 0);
-      addPixel(
-        x,
-        height - 1
-      );
-    }
-
-    for (
-      let y = 0;
-      y < height;
-      y++
-    ) {
-      addPixel(0, y);
-      addPixel(
-        width - 1,
-        y
-      );
-    }
-
-    let queueIndex = 0;
-
-    const threshold =
-      backgroundMode ===
-      'light'
-        ? 55
-        : 55;
-
-    while (
-      queueIndex <
-      queueX.length
-    ) {
-      const x =
-        queueX[queueIndex];
-
-      const y =
-        queueY[queueIndex];
-
-      queueIndex++;
-
-      const pixelIndex =
-        (y * width + x) *
-        channels;
-
-      const r =
-        raw[pixelIndex];
-
-      const g =
-        raw[pixelIndex + 1];
-
-      const b =
-        raw[pixelIndex + 2];
-
-      const alpha =
-        raw[pixelIndex + 3];
-
-      if (alpha === 0) {
-        continue;
-      }
-
-      const distance =
-        colorDistance(
-          r,
-          g,
-          b,
-          bgColor.r,
-          bgColor.g,
-          bgColor.b
-        );
-
-      let isBackground =
-        distance <= threshold;
-
-      if (
-        backgroundMode ===
-        'light'
-      ) {
-        const brightness =
-          (r + g + b) / 3;
-
-        const saturation =
-          Math.max(r, g, b) -
-          Math.min(r, g, b);
-
-        if (
-          brightness >= 215 &&
-          saturation <= 55
-        ) {
-          isBackground = true;
-        }
-      }
-
-      if (
-        backgroundMode ===
-        'dark'
-      ) {
-        const brightness =
-          (r + g + b) / 3;
-
-        const saturation =
-          Math.max(r, g, b) -
-          Math.min(r, g, b);
-
-        if (
-          brightness <= 70 &&
-          saturation <= 55
-        ) {
-          isBackground = true;
-        }
-      }
-
-      if (!isBackground) {
-        continue;
-      }
-
-      raw[pixelIndex + 3] =
-        0;
-
-      addPixel(x + 1, y);
-      addPixel(x - 1, y);
-      addPixel(x, y + 1);
-      addPixel(x, y - 1);
-    }
-
-    return await sharp(
-      raw,
-      {
-        raw: {
-          width,
-          height,
-          channels: 4,
-        },
-      }
-    )
-      .png()
-      .toBuffer();
-
-  } catch (error) {
-    console.log(
-      '⚠️ Edge background removal failed:',
-      error.message
-    );
-
-    return inputBuffer;
-  }
-}
-
-// ======================================================
-// REMOVE WHITE / LIGHT BACKGROUND
-// ======================================================
-
-async function removeLightBackground(
-  inputBuffer
-) {
-  try {
-    const image =
-      sharp(inputBuffer)
-        .ensureAlpha();
-
-    const metadata =
-      await image.metadata();
-
-    const width =
-      metadata.width || 1000;
-
-    const height =
-      metadata.height || 1000;
-
-    const raw =
-      await image
-        .raw()
-        .toBuffer();
-
-    const channels = 4;
-
-    for (
-      let i = 0;
-      i < raw.length;
-      i += channels
-    ) {
-      const r = raw[i];
-      const g = raw[i + 1];
-      const b = raw[i + 2];
-
-      const brightness =
-        (r + g + b) / 3;
-
-      const saturation =
-        Math.max(r, g, b) -
-        Math.min(r, g, b);
-
-      const isWhite =
-        brightness >= 242 &&
-        saturation <= 35;
-
-      const isLightGray =
-        brightness >= 228 &&
-        saturation <= 22;
-
-      if (
-        isWhite ||
-        isLightGray
-      ) {
-        raw[i + 3] = 0;
-      }
-    }
-
-    return await sharp(
-      raw,
-      {
-        raw: {
-          width,
-          height,
-          channels: 4,
-        },
-      }
-    )
-      .png()
-      .toBuffer();
-
-  } catch (error) {
-    console.log(
-      '⚠️ Light background removal failed:',
-      error.message
-    );
-
-    return inputBuffer;
-  }
-}
-
-// ======================================================
-// PRODUCT IMAGE PROCESSING
-//
-// IMPORTANT:
-//
-// We do NOT resize the original image with "contain"
-// before trimming.
-//
-// That was one of the reasons black margins survived.
-//
-// Instead:
-//
-// 1. Decode
-// 2. Remove edge background
-// 3. Remove light background
-// 4. Trim transparent pixels
-// 5. Resize the actual product
-// 6. Put it on a transparent canvas
-// ======================================================
-
-async function processProductImage(
-  inputBuffer,
-  width,
-  height
-) {
-  try {
-    console.log(
-      '🖼️ Starting advanced product image processing...'
-    );
-
-    // --------------------------------------------------
-    // Initial trim.
-    // --------------------------------------------------
-
-    let working =
-      await sharp(inputBuffer)
-        .ensureAlpha()
-        .trim({
-          threshold: 12,
-        })
-        .png()
-        .toBuffer();
-
-    // --------------------------------------------------
-    // Remove edge-connected black/white background.
-    // --------------------------------------------------
-
-    working =
-      await removeEdgeBackground(
-        working
-      );
-
-    // --------------------------------------------------
-    // Remove remaining light background.
-    // --------------------------------------------------
-
-    working =
-      await removeLightBackground(
-        working
-      );
-
-    // --------------------------------------------------
-    // Trim again.
-    //
-    // This is what removes the now-transparent
-    // black/white border.
-    // --------------------------------------------------
-
-    working =
-      await sharp(working)
-        .ensureAlpha()
-        .trim({
-          threshold: 5,
-        })
-        .png()
-        .toBuffer();
-
-    const metadata =
-      await sharp(
-        working
-      ).metadata();
-
-    const sourceW =
-      metadata.width || width;
-
-    const sourceH =
-      metadata.height || height;
-
-    console.log(
-      'Product after background removal:',
-      `${sourceW}x${sourceH}`
-    );
-
-    // --------------------------------------------------
-    // Product should occupy approximately 90% of the
-    // available area.
-    // --------------------------------------------------
-
-    const targetW =
-      Math.max(
-        100,
-        Math.round(
-          width * 0.90
-        )
-      );
-
-    const targetH =
-      Math.max(
-        100,
-        Math.round(
-          height * 0.90
-        )
-      );
-
-    // --------------------------------------------------
-    // Scale the actual product.
-    //
-    // "inside" keeps proportions without reintroducing
-    // the original image's empty space.
-    // --------------------------------------------------
-
-    const resized =
-      await sharp(working)
-        .resize({
-          width: targetW,
-          height: targetH,
-          fit: 'inside',
-          withoutEnlargement: false,
-          kernel: sharp.kernel.lanczos3,
-        })
-        .png()
-        .toBuffer();
-
-    const resizedMeta =
-      await sharp(
-        resized
-      ).metadata();
-
-    const finalW =
-      resizedMeta.width ||
-      targetW;
-
-    const finalH =
-      resizedMeta.height ||
-      targetH;
-
-    // --------------------------------------------------
-    // Put product onto a transparent canvas that is
-    // exactly the image area.
-    // --------------------------------------------------
-
-    const left =
-      Math.round(
-        (width - finalW) / 2
-      );
-
-    const top =
-      Math.round(
-        (height - finalH) / 2
-      );
-
-    const canvas =
-      await sharp({
-        create: {
-          width,
-          height,
-          channels: 4,
-          background: {
-            r: 255,
-            g: 255,
-            b: 255,
-            alpha: 0,
-          },
-        },
-      })
-        .composite([
-          {
-            input: resized,
-            left,
-            top,
-          },
-        ])
-        .png()
-        .toBuffer();
-
-    console.log(
-      '✅ Product image finished:',
-      `${finalW}x${finalH}`,
-      'inside',
-      `${width}x${height}`
-    );
-
-    return canvas;
-
-  } catch (error) {
-    console.log(
-      '⚠️ Product image processing failed:',
-      error.message
-    );
-
-    // Safe fallback.
-    return await sharp(
-      inputBuffer
-    )
-      .ensureAlpha()
-      .resize({
-        width,
-        height,
-        fit: 'inside',
-        withoutEnlargement: false,
-      })
-      .png()
-      .toBuffer();
-  }
-}
-
-// ======================================================
-// LAYOUT
-// ======================================================
-
-function layoutFor(
-  size,
-  template
-) {
+function layoutFor(size, template) {
   const {
     width,
     height,
   } = SIZES[size];
 
-  const margin =
-    Math.round(
-      Math.min(
-        width,
-        height
-      ) * 0.045
-    );
+  const margin = Math.round(
+    Math.min(width, height) * 0.055
+  );
 
-  let headerH;
+  const headerH =
+    size === 'story'
+      ? 300
+      : size === 'landscape'
+        ? 235
+        : 265;
 
-  if (size === 'story') {
-    headerH = 270;
-  } else if (
-    size === 'landscape'
-  ) {
-    headerH = 190;
-  } else {
-    headerH = 210;
-  }
-
-  let footerH;
-
-  if (size === 'story') {
-    footerH = 150;
-  } else if (
-    size === 'landscape'
-  ) {
-    footerH = 115;
-  } else {
-    footerH = 115;
-  }
+  const footerH =
+    size === 'story'
+      ? 145
+      : 120;
 
   const contentY =
-    headerH;
+    headerH + 10;
 
   const contentBottom =
-    height -
-    footerH -
-    10;
+    height - footerH;
 
-  const contentH =
-    Math.max(
-      400,
-      contentBottom -
-      contentY
-    );
+  const contentH = Math.max(
+    300,
+    contentBottom - contentY
+  );
+
+  // Give the text side enough room for
+  // a proper description.
+  let leftRatio = 0.48;
+
+  if (template === 'productInfo') {
+    leftRatio = 0.42;
+  }
+
+  if (template === 'minimal') {
+    leftRatio = 0.47;
+  }
+
+  if (size === 'landscape') {
+    leftRatio =
+      template === 'productInfo'
+        ? 0.44
+        : 0.48;
+  }
+
+  const gap = Math.round(
+    Math.min(width, height) * 0.018
+  );
+
+  const innerW =
+    width - margin * 2;
+
+  const leftW = Math.round(
+    (innerW - gap) * leftRatio
+  );
+
+  const rightW =
+    innerW - gap - leftW;
 
   return {
     margin,
@@ -1148,11 +499,15 @@ function layoutFor(
     contentY,
     contentH,
 
-    contentX: margin,
+    leftX: margin,
+    leftW,
 
-    contentW:
-      width -
-      margin * 2,
+    rightX:
+      margin +
+      leftW +
+      gap,
+
+    rightW,
 
     footerY:
       height -
@@ -1161,155 +516,195 @@ function layoutFor(
 }
 
 // ======================================================
-// TEMPLATE COLORS
+// TEMPLATE COLOURS
 // ======================================================
 
 function templateColors(
   template,
   theme
 ) {
+
   const light = {
-    bg: '#F4F8F3',
+
+    bg: '#F4F8F4',
+
     panel: '#FFFFFF',
-    text: '#172017',
-    muted: '#586158',
+
+    text: '#202520',
+
+    muted: '#626862',
+
     accent: theme,
+
     accentSoft:
       rgba(theme, 0.10),
-    border: '#DDE6DC',
+
+    border: '#DDE7DD',
+
     footer:
       rgba(theme, 0.12),
+
     white: '#FFFFFF',
   };
 
-  if (
-    template ===
-    'boldProduct'
-  ) {
+
+  if (template === 'boldProduct') {
+
     return {
+      ...light,
+
       bg: theme,
+
       panel: '#FFFFFF',
+
       text: '#123016',
+
       muted: '#EAF5EA',
-      accent: theme,
+
+      accent: '#FFFFFF',
+
       accentSoft:
-        'rgba(46,125,50,0.10)',
+        'rgba(255,255,255,0.14)',
+
       border:
-        'rgba(255,255,255,0.30)',
+        'rgba(255,255,255,0.20)',
+
       footer:
-        'rgba(0,0,0,0.22)',
+        'rgba(0,0,0,0.20)',
+
       white: '#FFFFFF',
     };
   }
 
-  if (
-    template ===
-    'premiumAgri'
-  ) {
+
+  if (template === 'premiumAgri') {
+
     return {
-      bg: '#102815',
-      panel: '#183C1F',
+      ...light,
+
+      bg: '#102B16',
+
+      panel: '#173A1E',
+
       text: '#FFFFFF',
+
       muted: '#D7E8D9',
+
       accent: theme,
+
       accentSoft:
-        rgba(theme, 0.17),
+        rgba(theme, 0.16),
+
       border:
-        rgba(theme, 0.38),
-      footer: '#091A0D',
+        rgba(theme, 0.45),
+
+      footer: '#0B2010',
+
       white: '#FFFFFF',
     };
   }
 
-  if (
-    template ===
-    'pestControl'
-  ) {
+
+  if (template === 'pestControl') {
+
     return {
-      bg: '#FFF8EC',
+      ...light,
+
+      bg: '#FFF8ED',
+
       panel: '#FFFFFF',
-      text: '#292219',
-      muted: '#6A6257',
+
+      text: '#2C2418',
+
+      muted: '#6F665A',
+
       accent: theme,
-      accentSoft: '#FFF0D3',
-      border: '#E7D7B9',
-      footer: '#F5E6CA',
-      white: '#FFFFFF',
+
+      accentSoft: '#FFF0D5',
+
+      border: '#EAD9BA',
+
+      footer: '#F6E5C8',
     };
   }
 
-  if (
-    template ===
-    'promotion'
-  ) {
+
+  if (template === 'promotion') {
+
     return {
-      bg: '#FFFDF7',
+      ...light,
+
+      bg: '#FFFDF6',
+
       panel: '#FFFFFF',
-      text: '#24241F',
-      muted: '#68665D',
+
+      text: '#25251F',
+
+      muted: '#6C6A5F',
+
       accent: theme,
-      accentSoft: '#FFF1D1',
+
+      accentSoft: '#FFF1D2',
+
       border: '#E7DFC9',
-      footer: '#F4EBD2',
-      white: '#FFFFFF',
+
+      footer: '#F4EACF',
     };
   }
 
-  if (
-    template ===
-    'productInfo'
-  ) {
-    return {
-      bg: '#F3F7F3',
-      panel: '#FFFFFF',
-      text: '#1C281D',
-      muted: '#5C675D',
-      accent: theme,
-      accentSoft:
-        rgba(theme, 0.09),
-      border: '#D7E1D7',
-      footer: '#E8EFE8',
-      white: '#FFFFFF',
-    };
-  }
 
-  if (
-    template ===
-    'socialMedia'
-  ) {
+  if (template === 'socialMedia') {
+
     return {
-      bg: '#F0F7F1',
+      ...light,
+
+      bg: '#F1F7F1',
+
       panel: '#FFFFFF',
+
       text: '#17301B',
+
       muted: '#5D6B60',
+
       accent: theme,
+
       accentSoft:
         rgba(theme, 0.11),
-      border: '#D5E4D7',
-      footer: '#DFECE0',
-      white: '#FFFFFF',
+
+      border: '#D8E6D9',
+
+      footer: '#E0EEE1',
     };
   }
 
-  if (
-    template ===
-    'minimal'
-  ) {
+
+  if (template === 'minimal') {
+
     return {
+      ...light,
+
       bg: '#FFFFFF',
+
       panel: '#FFFFFF',
+
       text: '#171A17',
-      muted: '#626762',
-      accent: theme,
+
+      muted: '#666B66',
+
+      accent: '#202520',
+
       accentSoft: '#F1F3F1',
+
       border: '#E1E5E1',
+
       footer: '#F5F6F5',
-      white: '#FFFFFF',
     };
   }
+
 
   return light;
 }
+
 
 // ======================================================
 // BACKGROUND
@@ -1322,6 +717,7 @@ function backgroundSvg(
   colors,
   theme
 ) {
+
   let svg = `
     <rect
       width="${width}"
@@ -1330,302 +726,193 @@ function backgroundSvg(
     />
   `;
 
-  // ----------------------------------------------------
-  // MODERN FARM
-  // ----------------------------------------------------
 
-  if (
-    template ===
-    'modernFarm'
-  ) {
+  if (template === 'boldProduct') {
+
     svg += `
       <circle
-        cx="${width * 0.90}"
-        cy="${height * 0.09}"
-        r="${Math.min(width, height) * 0.11}"
-        fill="${theme}"
-        opacity="0.09"
-      />
-
-      <path
-        d="
-          M0 ${height * 0.94}
-          C${width * 0.20} ${height * 0.82},
-           ${width * 0.38} ${height * 0.97},
-           ${width * 0.57} ${height * 0.87}
-          C${width * 0.77} ${height * 0.76},
-           ${width * 0.88} ${height * 0.91},
-           ${width} ${height * 0.82}
-          V${height}
-          H0
-          Z
-        "
-        fill="${rgba(theme, 0.08)}"
-      />
-    `;
-  }
-
-  // ----------------------------------------------------
-  // BOLD PRODUCT
-  // ----------------------------------------------------
-
-  if (
-    template ===
-    'boldProduct'
-  ) {
-    svg += `
-      <circle
-        cx="${width * 0.92}"
-        cy="${height * 0.10}"
-        r="${Math.min(width, height) * 0.22}"
+        cx="${width * 0.88}"
+        cy="${height * 0.12}"
+        r="${Math.min(width, height) * 0.25}"
         fill="#FFFFFF"
         opacity="0.10"
       />
+    `;
 
+    svg += `
       <circle
-        cx="${width * 0.05}"
-        cy="${height * 0.90}"
-        r="${Math.min(width, height) * 0.18}"
+        cx="${width * 0.04}"
+        cy="${height * 0.92}"
+        r="${Math.min(width, height) * 0.22}"
         fill="#FFFFFF"
         opacity="0.07"
       />
     `;
   }
 
-  // ----------------------------------------------------
-  // PREMIUM
-  // ----------------------------------------------------
 
-  if (
-    template ===
-    'premiumAgri'
-  ) {
+  if (template === 'premiumAgri') {
+
     svg += `
       <rect
-        x="20"
-        y="20"
-        width="${width - 40}"
-        height="${height - 40}"
-        rx="34"
+        x="24"
+        y="24"
+        width="${width - 48}"
+        height="${height - 48}"
+        rx="28"
         fill="none"
         stroke="${theme}"
         stroke-width="4"
-        opacity="0.65"
+        opacity="0.75"
       />
     `;
-  }
-
-  // ----------------------------------------------------
-  // PEST CONTROL
-  // ----------------------------------------------------
-
-  if (
-    template ===
-    'pestControl'
-  ) {
-    const topH =
-      Math.round(
-        height * 0.19
-      );
 
     svg += `
-      <rect
-        x="0"
-        y="0"
-        width="${width}"
-        height="${topH}"
-        fill="${theme}"
-      />
-
       <circle
-        cx="${width * 0.92}"
-        cy="${topH * 0.40}"
-        r="${Math.min(width, height) * 0.12}"
-        fill="#FFFFFF"
-        opacity="0.12"
+        cx="${width - 80}"
+        cy="80"
+        r="18"
+        fill="${theme}"
       />
     `;
   }
 
-  // ----------------------------------------------------
-  // PROMOTION
-  // ----------------------------------------------------
 
-  if (
-    template ===
-    'promotion'
-  ) {
-    const topH =
-      Math.round(
-        height * 0.18
-      );
+  if (template === 'pestControl') {
 
     svg += `
       <rect
         x="0"
         y="0"
         width="${width}"
-        height="${topH}"
+        height="${Math.round(height * 0.22)}"
         fill="${theme}"
       />
+    `;
 
+    svg += `
+      <path
+        d="
+          M0 ${height * 0.22}
+          Q ${width * 0.25} ${height * 0.17}
+            ${width * 0.5} ${height * 0.22}
+          T ${width} ${height * 0.22}
+          V0
+          H0Z
+        "
+        fill="${theme}"
+        opacity="0.9"
+      />
+    `;
+  }
+
+
+  if (template === 'promotion') {
+
+    svg += `
+      <rect
+        x="0"
+        y="0"
+        width="${width}"
+        height="${Math.round(height * 0.18)}"
+        fill="${theme}"
+      />
+    `;
+
+    svg += `
       <circle
         cx="${width * 0.90}"
-        cy="${height * 0.08}"
-        r="${Math.min(width, height) * 0.13}"
+        cy="${height * 0.10}"
+        r="${Math.min(width, height) * 0.15}"
         fill="#FFFFFF"
         opacity="0.12"
       />
     `;
   }
 
-  // ----------------------------------------------------
-  // PRODUCT INFO
-  // ----------------------------------------------------
 
-  if (
-    template ===
-    'productInfo'
-  ) {
-    const side =
-      Math.round(
-        width * 0.075
-      );
+  if (template === 'productInfo') {
 
     svg += `
       <rect
         x="0"
         y="0"
-        width="${side}"
+        width="${Math.round(width * 0.23)}"
         height="${height}"
         fill="${theme}"
       />
     `;
+
+    svg += `
+      <rect
+        x="${Math.round(width * 0.23)}"
+        y="0"
+        width="${Math.round(width * 0.02)}"
+        height="${height}"
+        fill="${rgba(theme, 0.12)}"
+      />
+    `;
   }
 
-  // ----------------------------------------------------
-  // SOCIAL MEDIA
-  // ----------------------------------------------------
 
-  if (
-    template ===
-    'socialMedia'
-  ) {
-    const topH =
-      Math.round(
-        height * 0.12
-      );
+  if (template === 'socialMedia') {
 
     svg += `
       <rect
         x="0"
         y="0"
         width="${width}"
-        height="${topH}"
+        height="${Math.round(height * 0.13)}"
         fill="${theme}"
       />
+    `;
 
+    svg += `
       <circle
-        cx="${width * 0.92}"
-        cy="${topH * 0.50}"
-        r="${Math.min(width, height) * 0.10}"
+        cx="${width * 0.93}"
+        cy="${height * 0.08}"
+        r="${Math.min(width, height) * 0.13}"
         fill="#FFFFFF"
         opacity="0.10"
       />
     `;
   }
 
+
+  if (template === 'modernFarm') {
+
+    svg += `
+      <path
+        d="
+          M0 ${height * 0.84}
+          C ${width * .18} ${height * .69},
+            ${width * .36} ${height * .93},
+            ${width * .56} ${height * .79}
+          C ${width * .75} ${height * .66},
+            ${width * .88} ${height * .87},
+            ${width} ${height * .74}
+          V${height}
+          H0Z
+        "
+        fill="${rgba(theme, 0.12)}"
+      />
+    `;
+
+    svg += `
+      <circle
+        cx="${width * .88}"
+        cy="${height * .14}"
+        r="${Math.min(width, height) * .075}"
+        fill="${theme}"
+        opacity="0.18"
+      />
+    `;
+  }
+
+
   return svg;
 }
 
-// ======================================================
-// OFFER BADGE
-// ======================================================
-
-function drawOfferBadge(
-  width,
-  height,
-  theme,
-  promoText
-) {
-  if (!cleanText(promoText)) {
-    return '';
-  }
-
-  const badgeW =
-    height >= 1800
-      ? 245
-      : 205;
-
-  const badgeH =
-    height >= 1800
-      ? 92
-      : 78;
-
-  const x =
-    width -
-    badgeW -
-    Math.round(
-      Math.min(width, height) *
-      0.045
-    );
-
-  const y =
-    Math.round(
-      Math.min(width, height) *
-      0.045
-    );
-
-  return `
-    <g>
-      <rect
-        x="${x}"
-        y="${y}"
-        width="${badgeW}"
-        height="${badgeH}"
-        rx="${badgeH / 2}"
-        fill="${theme}"
-      />
-
-      <text
-        x="${x + badgeW / 2}"
-        y="${y + badgeH * 0.39}"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="${
-          height >= 1800
-            ? 18
-            : 15
-        }px"
-        font-weight="700"
-        fill="#FFFFFF"
-        text-anchor="middle"
-        letter-spacing="2"
-      >
-        SPECIAL OFFER
-      </text>
-
-      <text
-        x="${x + badgeW / 2}"
-        y="${y + badgeH * 0.70}"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="${
-          height >= 1800
-            ? 25
-            : 21
-        }px"
-        font-weight="900"
-        fill="#FFFFFF"
-        text-anchor="middle"
-      >
-        ${escapeXml(
-          cleanText(
-            promoText
-          ).slice(0, 24)
-        )}
-      </text>
-    </g>
-  `;
-}
 
 // ======================================================
 // HEADER
@@ -1638,21 +925,22 @@ function drawHeader(
   template,
   colors,
   businessName,
-  location,
-  promoText
+  location
 ) {
-  let svg = '';
-
-  const x =
-    layout.margin;
+  const x = layout.margin;
 
   const dark =
-    template ===
-      'boldProduct' ||
-    template ===
-      'premiumAgri';
+    template === 'boldProduct' ||
+    template === 'premiumAgri';
 
-  const textColor =
+  const businessSize =
+    height >= 1800
+      ? 64
+      : width >= 1800
+        ? 60
+        : 56;
+
+  const color =
     dark
       ? '#FFFFFF'
       : colors.text;
@@ -1662,705 +950,168 @@ function drawHeader(
       ? '#DCEBDD'
       : colors.muted;
 
-  const businessSize =
-    height >= 1800
-      ? 62
-      : width >= 1800
-        ? 58
-        : 54;
+  let svg = '';
 
-  // ----------------------------------------------------
+  // ====================================================
+  // PRODUCT INFO
+  // ====================================================
+
+  if (template === 'productInfo') {
+    svg += `
+      <text
+        x="${x}"
+        y="${layout.headerH * 0.56}"
+        font-family="Trebuchet MS, Arial, sans-serif"
+        font-size="34px"
+        font-weight="900"
+        fill="#FFFFFF"
+        letter-spacing="1.5px"
+      >
+        AGRIVENTURE
+      </text>
+
+      <rect
+        x="${x}"
+        y="${layout.headerH * 0.68}"
+        width="110"
+        height="5"
+        rx="2.5"
+        fill="#FFFFFF"
+        opacity="0.8"
+      />
+
+      <text
+        x="${x}"
+        y="${layout.headerH * 0.84}"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="17px"
+        font-weight="700"
+        fill="#E8F5E9"
+        letter-spacing="1px"
+      >
+        PRODUCT INFO
+      </text>
+    `;
+
+    return svg;
+  }
+
+  // ====================================================
+  // PEST CONTROL
+  // ====================================================
+
+  if (template === 'pestControl') {
+    svg += `
+      <text
+        x="${x}"
+        y="52"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="17px"
+        font-weight="900"
+        fill="#FFFFFF"
+        letter-spacing="2.5px"
+      >
+        PEST CONTROL
+      </text>
+    `;
+
+    svg += textBlock(
+      businessName,
+      x,
+      120,
+      width * 0.72,
+      businessSize,
+      '#FFFFFF',
+      {
+        weight: '900',
+        maxLines: 2,
+        lineHeight: businessSize * 1.04,
+        family: 'Trebuchet MS, Arial, sans-serif',
+        letterSpacing: 0.5,
+      }
+    );
+
+    if (location) {
+      svg += textBlock(
+        location,
+        x,
+        225,
+        width * 0.65,
+        21,
+        '#F3FFF4',
+        {
+          weight: '600',
+          maxLines: 1,
+        }
+      );
+    }
+
+    return svg;
+  }
+
+  // ====================================================
+  // BRAND ACCENT
+  // ====================================================
+
+  svg += `
+    <rect
+      x="${x}"
+      y="${layout.margin - 16}"
+      width="74"
+      height="6"
+      rx="3"
+      fill="${dark ? '#FFFFFF' : colors.accent}"
+    />
+  `;
+
+  // ====================================================
   // COMPANY NAME
-  // ----------------------------------------------------
+  // ====================================================
 
   svg += textBlock(
     businessName,
     x,
-    layout.margin +
-      businessSize,
-    width * 0.68,
+    layout.margin + businessSize - 2,
+    width * 0.70,
     businessSize,
-    textColor,
+    color,
     {
       weight: '900',
       maxLines: 2,
-      lineHeight:
-        businessSize * 1.02,
+      lineHeight: businessSize * 1.03,
       family:
-        'Arial, Helvetica, sans-serif',
+        'Trebuchet MS, Arial, Helvetica, sans-serif',
+      letterSpacing: 0.2,
     }
   );
 
-  // ----------------------------------------------------
-  // AGRICULTURAL LABEL
-  // ----------------------------------------------------
-
-  svg += `
-    <text
-      x="${x}"
-      y="${
-        layout.margin +
-        businessSize * 1.70
-      }"
-      font-family="Arial, Helvetica, sans-serif"
-      font-size="${
-        height >= 1800
-          ? 17
-          : 14
-      }px"
-      font-weight="800"
-      fill="${muted}"
-      letter-spacing="3"
-    >
-      AGRICULTURAL SOLUTIONS
-    </text>
-  `;
-
-  // ----------------------------------------------------
+  // ====================================================
   // LOCATION
-  // ----------------------------------------------------
+  // ====================================================
 
   if (location) {
-    svg += `
-      <text
-        x="${x}"
-        y="${
-          layout.margin +
-          businessSize * 1.98
-        }"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="17px"
-        font-weight="600"
-        fill="${muted}"
-      >
-        ${escapeXml(location)}
-      </text>
-    `;
+    svg += textBlock(
+      location,
+      x,
+      layout.margin +
+        businessSize * 2.15,
+      width * 0.62,
+      20,
+      muted,
+      {
+        weight: '600',
+        maxLines: 1,
+        letterSpacing: 0.2,
+      }
+    );
   }
-
-  // ----------------------------------------------------
-  // OFFER BADGE
-  // ----------------------------------------------------
-
-  svg += drawOfferBadge(
-    width,
-    height,
-    colors.accent,
-    promoText
-  );
 
   return svg;
 }
 
-// ======================================================
-// DESCRIPTION FITTING
-//
-// Finds the largest font that allows as much text as
-// possible inside the description area.
-// ======================================================
-
-function fitDescription(
-  text,
-  width,
-  height,
-  preferredSize,
-  minimumSize
-) {
-  let selectedSize =
-    minimumSize;
-
-  let selectedLines =
-    wrapText(
-      text,
-      width,
-      minimumSize
-    );
-
-  for (
-    let size =
-      preferredSize;
-    size >= minimumSize;
-    size -= 1
-  ) {
-    const lines =
-      wrapText(
-        text,
-        width,
-        size
-      );
-
-    const lineHeight =
-      Math.round(
-        size * 1.34
-      );
-
-    const needed =
-      lines.length *
-      lineHeight;
-
-    if (
-      needed <= height
-    ) {
-      selectedSize =
-        size;
-
-      selectedLines =
-        lines;
-
-      break;
-    }
-  }
-
-  const lineHeight =
-    Math.round(
-      selectedSize * 1.34
-    );
-
-  const maxLines =
-    Math.max(
-      1,
-      Math.floor(
-        height /
-        lineHeight
-      )
-    );
-
-  selectedLines =
-    truncateLines(
-      selectedLines,
-      maxLines
-    );
-
-  return {
-    fontSize:
-      selectedSize,
-
-    lineHeight,
-
-    lines:
-      selectedLines,
-  };
-}
 
 // ======================================================
-// DESCRIPTION BOX
-// ======================================================
-
-function drawDescriptionBox(
-  x,
-  y,
-  width,
-  height,
-  description,
-  colors,
-  textColor,
-  accent,
-  dark
-) {
-  if (!cleanText(description)) {
-    return '';
-  }
-
-  const boxPadding =
-    Math.round(
-      Math.min(
-        width,
-        height
-      ) * 0.055
-    );
-
-  const labelSize =
-    height >= 500
-      ? 17
-      : 14;
-
-  const textAreaHeight =
-    Math.max(
-      80,
-      height -
-      boxPadding * 2 -
-      55
-    );
-
-  const fit =
-    fitDescription(
-      description,
-      width -
-        boxPadding * 2,
-      textAreaHeight,
-      height >= 800
-        ? 30
-        : 27,
-      23
-    );
-
-  let svg = `
-    <rect
-      x="${x}"
-      y="${y}"
-      width="${width}"
-      height="${height}"
-      rx="26"
-      fill="${
-        dark
-          ? colors.accentSoft
-          : colors.accentSoft
-      }"
-      stroke="${accent}"
-      stroke-width="2"
-    />
-
-    <rect
-      x="${x + 22}"
-      y="${y + 18}"
-      width="6"
-      height="${
-        height - 36
-      }"
-      rx="3"
-      fill="${accent}"
-    />
-
-    <text
-      x="${x + boxPadding + 8}"
-      y="${y + boxPadding + 2}"
-      font-family="Arial, Helvetica, sans-serif"
-      font-size="${labelSize}px"
-      font-weight="900"
-      fill="${accent}"
-      letter-spacing="2"
-    >
-      DESCRIPTION
-    </text>
-  `;
-
-  fit.lines.forEach(
-    (line, index) => {
-      svg += `
-        <text
-          x="${x + boxPadding + 8}"
-          y="${
-            y +
-            boxPadding +
-            42 +
-            index *
-              fit.lineHeight
-          }"
-          font-family="Arial, Helvetica, sans-serif"
-          font-size="${fit.fontSize}px"
-          font-weight="600"
-          fill="${textColor}"
-        >
-          ${escapeXml(line)}
-        </text>
-      `;
-    }
-  );
-
-  return svg;
-}
-
-// ======================================================
-// BENEFITS
-// ======================================================
-
-function getBenefits(
-  fields
-) {
-  const benefits = [];
-
-  if (
-    cleanText(
-      fields.activeIngredient
-    )
-  ) {
-    benefits.push(
-      `Active: ${cleanText(
-        fields.activeIngredient
-      )}`
-    );
-  }
-
-  if (
-    cleanText(
-      fields.targetPests
-    )
-  ) {
-    benefits.push(
-      `Targets: ${cleanText(
-        fields.targetPests
-      )}`
-    );
-  }
-
-  if (
-    cleanText(
-      fields.crops
-    )
-  ) {
-    benefits.push(
-      `Crops: ${cleanText(
-        fields.crops
-      )}`
-    );
-  }
-
-  if (
-    cleanText(
-      fields.benefit1
-    )
-  ) {
-    benefits.push(
-      cleanText(
-        fields.benefit1
-      )
-    );
-  }
-
-  if (
-    cleanText(
-      fields.benefit2
-    )
-  ) {
-    benefits.push(
-      cleanText(
-        fields.benefit2
-      )
-    );
-  }
-
-  if (
-    cleanText(
-      fields.benefit3
-    )
-  ) {
-    benefits.push(
-      cleanText(
-        fields.benefit3
-      )
-    );
-  }
-
-  if (
-    cleanText(
-      fields.benefit4
-    )
-  ) {
-    benefits.push(
-      cleanText(
-        fields.benefit4
-      )
-    );
-  }
-
-  return benefits.slice(
-    0,
-    4
-  );
-}
-
-// ======================================================
-// BENEFITS BOX
-// ======================================================
-
-function drawBenefits(
-  x,
-  y,
-  width,
-  height,
-  benefits,
-  colors,
-  textColor,
-  accent
-) {
-  if (
-    !benefits ||
-    !benefits.length
-  ) {
-    return '';
-  }
-
-  const gap = 18;
-
-  const columnW =
-    (width - gap) / 2;
-
-  const rowH =
-    Math.max(
-      62,
-      (height - 16) / 2
-    );
-
-  let svg = `
-    <text
-      x="${x}"
-      y="${y + 22}"
-      font-family="Arial, Helvetica, sans-serif"
-      font-size="14px"
-      font-weight="900"
-      fill="${accent}"
-      letter-spacing="2"
-    >
-      KEY BENEFITS
-    </text>
-  `;
-
-  benefits.forEach(
-    (benefit, index) => {
-      const column =
-        index % 2;
-
-      const row =
-        Math.floor(
-          index / 2
-        );
-
-      const itemX =
-        x +
-        column *
-          (columnW + gap);
-
-      const itemY =
-        y +
-        38 +
-        row *
-          rowH;
-
-      svg += `
-        <rect
-          x="${itemX}"
-          y="${itemY}"
-          width="${columnW}"
-          height="${rowH - 10}"
-          rx="18"
-          fill="${colors.accentSoft}"
-        />
-
-        <circle
-          cx="${itemX + 28}"
-          cy="${itemY + 27}"
-          r="14"
-          fill="${accent}"
-        />
-
-        <text
-          x="${itemX + 28}"
-          y="${itemY + 33}"
-          font-family="Arial, Helvetica, sans-serif"
-          font-size="18px"
-          font-weight="900"
-          fill="#FFFFFF"
-          text-anchor="middle"
-        >
-          ✓
-        </text>
-      `;
-
-      const lines =
-        wrapText(
-          benefit,
-          columnW - 65,
-          17
-        );
-
-      const limited =
-        truncateLines(
-          lines,
-          2
-        );
-
-      limited.forEach(
-        (line, lineIndex) => {
-          svg += `
-            <text
-              x="${itemX + 52}"
-              y="${
-                itemY +
-                25 +
-                lineIndex * 21
-              }"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="17px"
-              font-weight="700"
-              fill="${textColor}"
-            >
-              ${escapeXml(line)}
-            </text>
-          `;
-        }
-      );
-    }
-  );
-
-  return svg;
-}
-
-// ======================================================
-// USAGE BOX
-// ======================================================
-
-function drawUsageBox(
-  x,
-  y,
-  width,
-  height,
-  usage,
-  colors,
-  textColor,
-  accent,
-  dark
-) {
-  if (!cleanText(usage)) {
-    return '';
-  }
-
-  const padding = 28;
-
-  const titleSize =
-    height >= 230
-      ? 17
-      : 14;
-
-  const availableHeight =
-    height -
-    padding * 2 -
-    45;
-
-  const fit =
-    fitDescription(
-      usage,
-      width -
-        padding * 2,
-      availableHeight,
-      height >= 300
-        ? 27
-        : 24,
-      21
-    );
-
-  let svg = `
-    <rect
-      x="${x}"
-      y="${y}"
-      width="${width}"
-      height="${height}"
-      rx="26"
-      fill="${dark
-        ? colors.accentSoft
-        : colors.panel}"
-      stroke="${accent}"
-      stroke-width="2"
-    />
-
-    <rect
-      x="${x}"
-      y="${y}"
-      width="${width}"
-      height="8"
-      rx="4"
-      fill="${accent}"
-    />
-
-    <text
-      x="${x + padding}"
-      y="${y + padding + 8}"
-      font-family="Arial, Helvetica, sans-serif"
-      font-size="${titleSize}px"
-      font-weight="900"
-      fill="${accent}"
-      letter-spacing="2"
-    >
-      USAGE / MIXING INSTRUCTIONS
-    </text>
-  `;
-
-  fit.lines.forEach(
-    (line, index) => {
-      svg += `
-        <text
-          x="${x + padding}"
-          y="${
-            y +
-            padding +
-            55 +
-            index *
-              fit.lineHeight
-          }"
-          font-family="Arial, Helvetica, sans-serif"
-          font-size="${fit.fontSize}px"
-          font-weight="600"
-          fill="${textColor}"
-        >
-          ${escapeXml(line)}
-        </text>
-      `;
-    }
-  );
-
-  return svg;
-}
-
-// ======================================================
-// PRICE / OFFER
-// ======================================================
-
-function drawPriceOffer(
-  x,
-  y,
-  width,
-  height,
-  promoText,
-  accent
-) {
-  if (!cleanText(promoText)) {
-    return '';
-  }
-
-  return `
-    <rect
-      x="${x}"
-      y="${y}"
-      width="${width}"
-      height="${height}"
-      rx="24"
-      fill="${accent}"
-    />
-
-    <text
-      x="${x + 28}"
-      y="${y + 35}"
-      font-family="Arial, Helvetica, sans-serif"
-      font-size="14px"
-      font-weight="800"
-      fill="#FFFFFF"
-      letter-spacing="2"
-    >
-      OFFER
-    </text>
-
-    <text
-      x="${x + 28}"
-      y="${y + 72}"
-      font-family="Arial, Helvetica, sans-serif"
-      font-size="${
-        height >= 120
-          ? 29
-          : 24
-      }px"
-      font-weight="900"
-      fill="#FFFFFF"
-    >
-      ${escapeXml(
-        cleanText(
-          promoText
-        )
-      )}
-    </text>
-  `;
-}
-
-// ======================================================
-// MAIN CONTENT
+// CONTENT
 // ======================================================
 
 function drawContent(
@@ -2372,427 +1123,374 @@ function drawContent(
   fields,
   theme
 ) {
+
+  const {
+    productName,
+    description,
+    activeIngredient,
+    targetPests,
+    crops,
+    usage,
+    promoText,
+  } = fields;
+
+
   const dark =
-    template ===
-      'boldProduct' ||
-    template ===
-      'premiumAgri';
+    template === 'boldProduct' ||
+    template === 'premiumAgri';
+
+
+  const titleColor =
+    dark
+      ? '#FFFFFF'
+      : colors.accent;
+
 
   const textColor =
     dark
-      ? '#F5FFF5'
+      ? '#F2F8F2'
       : colors.text;
 
-  const accent =
-    colors.accent;
 
-  const panel =
-    colors.panel;
+  const muted =
+    dark
+      ? '#DCEBDD'
+      : colors.muted;
+
 
   const border =
     dark
       ? 'rgba(255,255,255,0.18)'
       : colors.border;
 
-  const contentX =
-    layout.contentX;
 
-  const contentY =
-    layout.contentY;
+  const panel =
+    dark
+      ? colors.panel
+      : colors.panel;
 
-  const contentW =
-    layout.contentW;
 
-  const contentH =
-    layout.contentH;
+  const p = 24;
 
-  const gap = 22;
-
-  const p = 26;
 
   let svg = '';
 
+
+  const titleSize =
+    height >= 1800
+      ? 48
+      : width >= 1800
+        ? 46
+        : 42;
+
+
+  const detailSize =
+    height >= 1800
+      ? 21
+      : 20;
+
+
+  const detailWidth =
+    layout.leftW - p * 2;
+
+
   // ====================================================
-  // MAIN CONTENT PANEL
+  // LEFT CONTENT PANEL
   // ====================================================
 
   svg += `
     <rect
-      x="${contentX}"
-      y="${contentY}"
-      width="${contentW}"
-      height="${contentH}"
-      rx="32"
+      x="${layout.leftX}"
+      y="${layout.contentY}"
+      width="${layout.leftW}"
+      height="${layout.contentH}"
+      rx="24"
       fill="${panel}"
       stroke="${border}"
       stroke-width="2"
     />
   `;
 
+
+  // ====================================================
+  // RIGHT IMAGE PANEL
+  // ====================================================
+
+  svg += `
+    <rect
+      x="${layout.rightX}"
+      y="${layout.contentY}"
+      width="${layout.rightW}"
+      height="${layout.contentH}"
+      rx="24"
+      fill="${panel}"
+      stroke="${border}"
+      stroke-width="2"
+    />
+  `;
+
+
   // ====================================================
   // PRODUCT TITLE
   // ====================================================
 
-  const titleAreaX =
-    contentX + p;
-
-  const titleAreaW =
-    contentW -
-    p * 2;
-
-  const titleSize =
-    height >= 1800
-      ? 54
-      : 46;
-
   const titleLines =
     truncateLines(
       wrapText(
-        fields.productName,
-        titleAreaW * 0.72,
+        productName,
+        detailWidth,
         titleSize
       ),
-      2
+      3
     );
 
-  titleLines.forEach(
-    (line, index) => {
-      svg += `
+
+  svg += titleLines
+    .map(
+      (line, i) => `
         <text
-          x="${titleAreaX}"
+          x="${layout.leftX + p}"
           y="${
-            contentY +
-            60 +
-            index *
+            layout.contentY +
+            58 +
+            i *
               titleSize *
-              1.03
+              1.08
           }"
           font-family="Arial, Helvetica, sans-serif"
           font-size="${titleSize}px"
           font-weight="900"
-          fill="${dark
-            ? '#FFFFFF'
-            : textColor}"
+          fill="${titleColor}"
         >
           ${escapeXml(line)}
         </text>
-      `;
-    }
-  );
+      `
+    )
+    .join('');
 
-  const titleHeight =
+
+  let y =
+    layout.contentY +
+    58 +
     titleLines.length *
-    titleSize *
-    1.03;
+      titleSize *
+      1.08 +
+    26;
 
-  const imageY =
-    contentY +
-    titleHeight +
-    82;
+
+  // ====================================================
+  // PRODUCT DETAILS
+  // ====================================================
+
+  const details = [
+
+  // DESCRIPTION gets priority
+  [
+    'DESCRIPTION',
+    description,
+    4,
+  ],
+
+  [
+    'ACTIVE INGREDIENT',
+    activeIngredient,
+    2,
+  ],
+
+  [
+    'TARGETS',
+    targetPests,
+    2,
+  ],
+
+  [
+    'CROPS',
+    crops,
+    2,
+  ],
+
+  [
+    'USAGE',
+    usage,
+    3,
+  ],
+];
+
+
+  for (const [
+    label,
+    value,
+    maxLines,
+  ] of details) {
+
+    if (!cleanText(value)) {
+      continue;
+    }
+
+
+    if (
+      y >
+      layout.contentY +
+      layout.contentH -
+      65
+    ) {
+      break;
+    }
+
+
+    const result =
+      labelValue(
+        label,
+        value,
+        layout.leftX + p,
+        y,
+        detailWidth,
+        {
+          label: titleColor,
+
+          value:
+            muted === colors.muted
+              ? '#414741'
+              : muted,
+        },
+        {
+          labelSize:
+          label === 'DESCRIPTION'
+            ? 15
+            : 13,
+
+          valueSize:
+          label === 'DESCRIPTION'
+            ? detailSize + 2
+            : detailSize,
+
+          maxLines,
+          lineHeight:
+          label === 'DESCRIPTION'
+            ? Math.round((detailSize + 2) * 1.38)
+            : Math.round(detailSize * 1.28),
+        }
+      );
+
+
+    svg += result.svg;
+
+    y += result.height;
+  }
+
 
   // ====================================================
   // PRODUCT IMAGE CARD
   // ====================================================
 
-  const imageX =
-    contentX + p;
+  const imagePad = 28;
 
-  const imageW =
-    contentW -
-    p * 2;
-
-  const imageH =
-    Math.round(
-      contentH *
-      (height >= 1800
-        ? 0.31
-        : 0.29)
-    );
 
   svg += `
     <rect
-      x="${imageX}"
-      y="${imageY}"
-      width="${imageW}"
-      height="${imageH}"
-      rx="28"
-      fill="#FFFFFF"
-      stroke="${rgba(
-        theme,
-        0.15
-      )}"
-      stroke-width="2"
-    />
-
-    <rect
-      x="${imageX + 18}"
-      y="${imageY + 18}"
-      width="${imageW - 36}"
-      height="${imageH - 36}"
-      rx="22"
+      x="${layout.rightX + imagePad}"
+      y="${layout.contentY + imagePad}"
+      width="${layout.rightW - imagePad * 2}"
+      height="${Math.round(layout.contentH * 0.62)}"
+      rx="20"
       fill="#FFFFFF"
     />
+  `;
 
+
+  svg += `
     <text
-      x="${imageX + 30}"
-      y="${imageY + 34}"
+      x="${layout.rightX + layout.rightW / 2}"
+      y="${layout.contentY + layout.contentH * 0.70}"
       font-family="Arial, Helvetica, sans-serif"
-      font-size="13px"
-      font-weight="900"
-      fill="${theme}"
-      letter-spacing="2"
+      font-size="15px"
+      font-weight="800"
+      fill="${colors.muted}"
+      text-anchor="middle"
     >
       PRODUCT
     </text>
   `;
 
-  // ====================================================
-  // DESCRIPTION
-  // ====================================================
-
-  const descriptionY =
-    imageY +
-    imageH +
-    gap;
-
-  const descriptionH =
-    Math.round(
-      contentH *
-      (height >= 1800
-        ? 0.22
-        : 0.21)
-    );
-
-  svg += drawDescriptionBox(
-    imageX,
-    descriptionY,
-    imageW,
-    descriptionH,
-    fields.description,
-    colors,
-    textColor,
-    accent,
-    dark
-  );
 
   // ====================================================
-  // BENEFITS
+  // PROMOTION
   // ====================================================
 
-  const benefits =
-    getBenefits(fields);
+  if (promoText) {
 
-  const benefitsY =
-    descriptionY +
-    descriptionH +
-    gap;
-
-  const benefitsH =
-    Math.round(
-      contentH *
-      (height >= 1800
-        ? 0.13
-        : 0.15)
-    );
-
-  svg += drawBenefits(
-    imageX,
-    benefitsY,
-    imageW,
-    benefitsH,
-    benefits,
-    colors,
-    textColor,
-    accent
-  );
-
-  // ====================================================
-  // USAGE
-  // ====================================================
-
-  const usageY =
-    benefitsY +
-    benefitsH +
-    gap;
-
-  const usageBottom =
-    contentY +
-    contentH -
-    p;
-
-  const usageH =
-    Math.max(
-      100,
-      usageBottom -
-      usageY
-    );
-
-  svg += drawUsageBox(
-    imageX,
-    usageY,
-    imageW,
-    usageH,
-    fields.usage,
-    colors,
-    textColor,
-    accent,
-    dark
-  );
-
-  return svg;
-}
-
-// ======================================================
-// FOOTER
-// ======================================================
-
-function drawFooter(
-  width,
-  height,
-  layout,
-  colors,
-  phone,
-  location,
-  email
-) {
-  const footerY =
-    layout.footerY;
-
-  const footerH =
-    height -
-    footerY;
-
-  let svg = `
-    <rect
-      x="0"
-      y="${footerY}"
-      width="${width}"
-      height="${footerH}"
-      fill="${colors.footer}"
-    />
-  `;
-
-  const items = [];
-
-  if (phone) {
-    items.push({
-      label: 'CALL',
-      value: phone,
-    });
-  }
-
-  if (phone) {
-    items.push({
-      label: 'WHATSAPP',
-      value: phone,
-    });
-  }
-
-  if (location) {
-    items.push({
-      label: 'LOCATION',
-      value: location,
-    });
-  }
-
-  if (email && items.length < 3) {
-    items.push({
-      label: 'EMAIL',
-      value: email,
-    });
-  }
-
-  const count =
-    Math.max(
-      1,
-      items.length
-    );
-
-  const columnW =
-    width / count;
-
-  items.forEach(
-    (item, index) => {
-      const centerX =
-        columnW *
-        index +
-        columnW / 2;
-
-      svg += `
-        <text
-          x="${centerX}"
-          y="${footerY + 34}"
-          font-family="Arial, Helvetica, sans-serif"
-          font-size="12px"
-          font-weight="900"
-          fill="${colors.accent}"
-          text-anchor="middle"
-          letter-spacing="2"
-        >
-          ${escapeXml(
-            item.label
-          )}
-        </text>
-      `;
-
-      const valueLines =
-        wrapText(
-          item.value,
-          columnW - 50,
-          17
-        );
-
-      const lines =
-        truncateLines(
-          valueLines,
-          2
-        );
-
-      lines.forEach(
-        (line, lineIndex) => {
-          svg += `
-            <text
-              x="${centerX}"
-              y="${
-                footerY +
-                62 +
-                lineIndex *
-                  21
-              }"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="17px"
-              font-weight="700"
-              fill="${colors.text}"
-              text-anchor="middle"
-            >
-              ${escapeXml(line)}
-            </text>
-          `;
-        }
+    const promoH =
+      Math.min(
+        105,
+        Math.max(
+          72,
+          layout.contentH * 0.14
+        )
       );
-    }
-  );
+
+
+    const promoY =
+      layout.contentY +
+      layout.contentH -
+      promoH -
+      22;
+
+
+    svg += `
+      <rect
+        x="${layout.leftX}"
+        y="${promoY}"
+        width="${layout.leftW}"
+        height="${promoH}"
+        rx="18"
+        fill="${theme}"
+      />
+    `;
+
+
+    svg += textBlock(
+      promoText,
+      layout.leftX + 18,
+      promoY + promoH * 0.62,
+      layout.leftW - 36,
+      22,
+      '#FFFFFF',
+      {
+        weight: '900',
+        maxLines: 2,
+        lineHeight: 27,
+        anchor: 'start',
+      }
+    );
+  }
+
 
   return svg;
 }
+
 
 // ======================================================
 // TEST ROUTE
 // ======================================================
 
-router.get(
-  '/test',
-  (req, res) => {
-    res.status(200).json({
-      success: true,
-      message:
-        'Poster API is connected correctly.',
-      route:
-        '/api/poster/test',
-      method: 'GET',
-    });
-  }
-);
+router.get('/test', (req, res) => {
+
+  res.status(200).json({
+
+    success: true,
+
+    message:
+      'Poster API is connected correctly.',
+
+    route:
+      '/api/poster/test',
+
+    method:
+      'GET',
+
+  });
+});
+
 
 // ======================================================
 // GENERATE POSTER
@@ -2801,7 +1499,9 @@ router.get(
 router.post(
   '/generate',
   async (req, res) => {
+
     try {
+
       const {
         businessName,
         logo,
@@ -2812,6 +1512,7 @@ router.post(
 
         productName,
         productImage,
+
         description,
         activeIngredient,
         targetPests,
@@ -2819,71 +1520,76 @@ router.post(
         usage,
         promoText,
 
-        benefit1,
-        benefit2,
-        benefit3,
-        benefit4,
-
         template,
         size,
       } = req.body || {};
 
+
       // ==================================================
-      // NORMALIZE
+      // NORMALIZE INPUT
       // ==================================================
 
       const finalBusinessName =
-        cleanText(
-          businessName
-        );
+        cleanText(businessName);
+
 
       const finalProductName =
-        cleanText(
-          productName
-        );
+        cleanText(productName);
+
 
       const finalThemeColor =
-        normalizeColor(
-          themeColor
-        );
+        normalizeColor(themeColor);
+
 
       const requestedTemplate =
         cleanText(template);
 
+
       const finalTemplate =
-        TEMPLATES.has(
-          requestedTemplate
-        )
+        TEMPLATES.has(requestedTemplate)
           ? requestedTemplate
           : 'modernFarm';
 
+
       const requestedSize =
         cleanText(size);
+
 
       const finalSize =
         SIZES[requestedSize]
           ? requestedSize
           : 'square';
 
+
       // ==================================================
       // VALIDATION
       // ==================================================
 
       if (!finalBusinessName) {
+
         return res.status(400).json({
+
           success: false,
+
           message:
             'Business name is required.',
+
         });
       }
 
+
       if (!finalProductName) {
+
         return res.status(400).json({
+
           success: false,
+
           message:
             'Product name is required.',
+
         });
       }
+
 
       // ==================================================
       // DIMENSIONS
@@ -2894,11 +1600,17 @@ router.post(
         height,
       } = SIZES[finalSize];
 
+
+      // ==================================================
+      // COLOUR + LAYOUT
+      // ==================================================
+
       const colors =
         templateColors(
           finalTemplate,
           finalThemeColor
         );
+
 
       const layout =
         layoutFor(
@@ -2906,82 +1618,43 @@ router.post(
           finalTemplate
         );
 
-      console.log(
-        '=========================================='
-      );
-
-      console.log(
-        '📢 NEW PRODUCT POSTER GENERATION'
-      );
-
-      console.log(
-        'Business:',
-        finalBusinessName
-      );
-
-      console.log(
-        'Product:',
-        finalProductName
-      );
-
-      console.log(
-        'Template:',
-        finalTemplate
-      );
-
-      console.log(
-        'Size:',
-        finalSize
-      );
-
-      console.log(
-        'Dimensions:',
-        `${width}x${height}`
-      );
-
-      console.log(
-        'Theme:',
-        finalThemeColor
-      );
-
-      console.log(
-        '=========================================='
-      );
 
       // ==================================================
-      // SVG
-      //
-      // IMPORTANT:
-      // There is intentionally NO XML declaration here.
+      // SVG START
       // ==================================================
 
-      let svg = `
-        <svg
-          width="${width}"
-          height="${height}"
-          viewBox="0 0 ${width} ${height}"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-      `;
+     let svg = `<svg
+      width="${width}"
+      height="${height}"
+      viewBox="0 0 ${width} ${height}"
+      xmlns="http://www.w3.org/2000/svg">`;
+
+
+      // ==================================================
+      // SVG DEFINITIONS
+      // ==================================================
+
+      svg += '<defs>';
 
       svg += `
-        <defs>
-          <filter
-            id="posterShadow"
-            x="-20%"
-            y="-20%"
-            width="140%"
-            height="140%"
-          >
-            <feDropShadow
-              dx="0"
-              dy="5"
-              stdDeviation="7"
-              flood-opacity="0.14"
-            />
-          </filter>
-        </defs>
+        <filter
+          id="shadow"
+          x="-20%"
+          y="-20%"
+          width="140%"
+          height="140%"
+        >
+          <feDropShadow
+            dx="0"
+            dy="6"
+            stdDeviation="8"
+            flood-opacity="0.16"
+          />
+        </filter>
       `;
+
+      svg += '</defs>';
+
 
       // ==================================================
       // BACKGROUND
@@ -2995,6 +1668,7 @@ router.post(
         finalThemeColor
       );
 
+
       // ==================================================
       // HEADER
       // ==================================================
@@ -3006,9 +1680,9 @@ router.post(
         finalTemplate,
         colors,
         finalBusinessName,
-        cleanText(location),
-        cleanText(promoText)
+        cleanText(location)
       );
+
 
       // ==================================================
       // CONTENT
@@ -3025,19 +1699,13 @@ router.post(
             finalProductName,
 
           description:
-            cleanText(
-              description
-            ),
+            cleanText(description),
 
           activeIngredient:
-            cleanText(
-              activeIngredient
-            ),
+            cleanText(activeIngredient),
 
           targetPests:
-            cleanText(
-              targetPests
-            ),
+            cleanText(targetPests),
 
           crops:
             cleanText(crops),
@@ -3046,51 +1714,103 @@ router.post(
             cleanText(usage),
 
           promoText:
-            cleanText(
-              promoText
-            ),
-
-          benefit1:
-            cleanText(
-              benefit1
-            ),
-
-          benefit2:
-            cleanText(
-              benefit2
-            ),
-
-          benefit3:
-            cleanText(
-              benefit3
-            ),
-
-          benefit4:
-            cleanText(
-              benefit4
-            ),
+            cleanText(promoText),
         },
         finalThemeColor
       );
+
 
       // ==================================================
       // FOOTER
       // ==================================================
 
-      svg += drawFooter(
-        width,
-        height,
-        layout,
-        colors,
-        cleanText(phone),
-        cleanText(location),
-        cleanText(email)
-      );
+      const footerY =
+        layout.footerY;
+
+
+      svg += `
+        <rect
+          x="0"
+          y="${footerY}"
+          width="${width}"
+          height="${height - footerY}"
+          fill="${colors.footer}"
+        />
+      `;
+
+
+      // ==================================================
+      // CONTACT DETAILS
+      // ==================================================
+
+      const contacts = [];
+
+
+      if (cleanText(phone)) {
+
+        contacts.push(
+          `Tel: ${cleanText(phone)}`
+        );
+      }
+
+
+      if (cleanText(email)) {
+
+        contacts.push(
+          `Email: ${cleanText(email)}`
+        );
+      }
+
+
+      if (contacts.length) {
+
+        svg += textBlock(
+          contacts.join(
+            '   •   '
+          ),
+          width / 2,
+          footerY + 48,
+          width - layout.margin * 2,
+          18,
+          colors.text,
+          {
+            weight: '700',
+            maxLines: 2,
+            lineHeight: 25,
+            anchor: 'middle',
+          }
+        );
+      }
+
+
+      // ==================================================
+      // FOOTER LABEL
+      // ==================================================
+
+      svg += `
+        <text
+          x="${width / 2}"
+          y="${height - 22}"
+          font-family="Arial, Helvetica, sans-serif"
+          font-size="13px"
+          font-weight="600"
+          fill="${colors.muted}"
+          text-anchor="middle"
+        >
+          Agricultural Product
+        </text>
+      `;
+
+
+      // ==================================================
+      // CLOSE SVG
+      // ==================================================
 
       svg += '</svg>';
 
+
       // ==================================================
-      // CREATE BASE IMAGE
+      // CREATE IMAGE
       // ==================================================
 
       let image =
@@ -3098,32 +1818,36 @@ router.post(
           Buffer.from(svg)
         ).png();
 
+
       // ==================================================
       // LOGO
       // ==================================================
 
       const logoBuffer =
-        dataUriToBuffer(
-          logo
-        );
+        dataUriToBuffer(logo);
+
 
       if (logoBuffer) {
+
         try {
+
           const logoBox =
             finalSize === 'story'
-              ? 180
-              : 150;
+              ? 155
+              : 125;
+
 
           const logoProcessed =
-            await sharp(
-              logoBuffer
-            )
+            await sharp(logoBuffer)
+
               .ensureAlpha()
+
               .resize(
                 logoBox,
                 logoBox,
                 {
                   fit: 'contain',
+
                   background: {
                     r: 255,
                     g: 255,
@@ -3132,24 +1856,30 @@ router.post(
                   },
                 }
               )
+
               .png()
+
               .toBuffer();
+
 
           image =
             image.composite([
               {
-                input:
-                  logoProcessed,
+                input: logoProcessed,
 
                 top:
                   layout.margin,
 
                 left:
-                  layout.margin,
+                  width -
+                  layout.margin -
+                  logoBox,
               },
             ]);
+        }
 
-        } catch (error) {
+        catch (error) {
+
           console.log(
             '⚠️ Logo processing failed:',
             error.message
@@ -3157,187 +1887,153 @@ router.post(
         }
       }
 
+
       // ==================================================
       // PRODUCT IMAGE
       // ==================================================
 
-      const productBuffer =
-        dataUriToBuffer(
-          productImage
-        );
+      // ======================================================
+// PRODUCT IMAGE
+// ======================================================
 
-      if (productBuffer) {
-        try {
-          // ------------------------------------------------
-          // Must match the SVG product card.
-          // ------------------------------------------------
+const productBuffer =
+  dataUriToBuffer(productImage);
 
-          const contentX =
-            layout.contentX;
+if (productBuffer) {
 
-          const contentY =
-            layout.contentY;
+  try {
 
-          const contentW =
-            layout.contentW;
+    // -----------------------------------------------
+    // Product image area
+    // -----------------------------------------------
 
-          const p = 26;
+    const imageX =
+      layout.rightX + 12;
 
-          const imageX =
-            contentX + p;
+    const imageY =
+      layout.contentY + 12;
 
-          const imageW =
-            contentW -
-            p * 2;
+    const imageW =
+      layout.rightW - 24;
 
-          const titleSize =
-            height >= 1800
-              ? 54
-              : 46;
+    const imageH =
+      Math.round(
+        layout.contentH * 0.76
+      );
 
-          const titleLines =
-            truncateLines(
-              wrapText(
-                finalProductName,
-                imageW * 0.72,
-                titleSize
-              ),
-              2
-            );
+    // -----------------------------------------------
+    // First trim empty/white borders
+    // -----------------------------------------------
 
-          const titleHeight =
-            titleLines.length *
-            titleSize *
-            1.03;
+    let productSharp =
+      sharp(productBuffer)
+        .ensureAlpha();
 
-          const imageY =
-            contentY +
-            titleHeight +
-            82;
+    // Trim transparent/white margins.
+    try {
+      productSharp =
+        productSharp.trim({
+          background: {
+            r: 255,
+            g: 255,
+            b: 255,
+            alpha: 0,
+          },
+          threshold: 18,
+        });
+    } catch (trimError) {
+      console.log(
+        '⚠️ Product trim skipped:',
+        trimError.message
+      );
+    }
 
-          const imageH =
-            Math.round(
-              layout.contentH *
-              (height >= 1800
-                ? 0.31
-                : 0.29)
-            );
+    // -----------------------------------------------
+    // Remove any remaining unnecessary borders
+    // -----------------------------------------------
 
-          // ------------------------------------------------
-          // Actual usable image area.
-          // ------------------------------------------------
+    const processed =
+      await productSharp
+        .flatten({
+          background: '#FFFFFF',
+        })
+        .resize(
+          imageW,
+          imageH,
+          {
+            fit: 'contain',
+            position: 'centre',
+            background: '#FFFFFF',
+          }
+        )
+        .png()
+        .toBuffer();
 
-          const innerPadding = 28;
+    // -----------------------------------------------
+    // Product image background
+    // -----------------------------------------------
 
-          const productAreaW =
-            Math.max(
-              200,
-              imageW -
-              innerPadding * 2
-            );
-
-          const productAreaH =
-            Math.max(
-              200,
-              imageH -
-              innerPadding * 2
-            );
-
-          console.log(
-            '📦 Processing product image...'
-          );
-
-          console.log(
-            'Product area:',
-            `${productAreaW}x${productAreaH}`
-          );
-
-          const processed =
-            await processProductImage(
-              productBuffer,
-              productAreaW,
-              productAreaH
-            );
-
-          const metadata =
-            await sharp(
-              processed
-            ).metadata();
-
-          const actualW =
-            metadata.width ||
-            productAreaW;
-
-          const actualH =
-            metadata.height ||
-            productAreaH;
-
-          const left =
-            Math.round(
-              imageX +
-              innerPadding +
-              (productAreaW -
-                actualW) /
-                2
-            );
-
-          const top =
-            Math.round(
-              imageY +
-              innerPadding +
-              (productAreaH -
-                actualH) /
-                2
-            );
-
-          image =
-            image.composite([
-              {
-                input:
-                  processed,
-
-                top,
-
-                left,
+    image =
+      image.composite([
+        {
+          input:
+            await sharp({
+              create: {
+                width: imageW,
+                height: imageH,
+                channels: 4,
+                background: {
+                  r: 255,
+                  g: 255,
+                  b: 255,
+                  alpha: 1,
+                },
               },
-            ]);
+            })
+              .png()
+              .toBuffer(),
 
-          console.log(
-            '✅ Product image added'
-          );
+          top: imageY,
+          left: imageX,
+        },
 
-          console.log(
-            'Final product:',
-            `${actualW}x${actualH}`
-          );
+        {
+          input: processed,
+          top: imageY,
+          left: imageX,
+        },
+      ]);
 
-        } catch (error) {
-          console.log(
-            '⚠️ Product image processing failed:',
-            error.message
-          );
-        }
-      }
+  }
+
+  catch (error) {
+
+    console.log(
+      '⚠️ Product image processing failed:',
+      error.message
+    );
+  }
+}
 
       // ==================================================
-      // OUTPUT FILE
+      // FILE NAME
       // ==================================================
 
       const timestamp =
         Date.now();
 
+
       const filename =
         `${
           safeFileName(
             finalBusinessName
-          ) ||
-          'business'
+          ) || 'business'
         }-${
           safeFileName(
             finalProductName
-          ) ||
-          'product'
+          ) || 'product'
         }-${timestamp}.png`;
+
 
       const outputPath =
         path.join(
@@ -3345,36 +2041,43 @@ router.post(
           filename
         );
 
+
       // ==================================================
-      // WRITE PNG
+      // SAVE
       // ==================================================
 
       await image
+
         .resize(
           width,
           height
         )
+
         .png({
           compressionLevel: 9,
           quality: 100,
         })
+
         .toFile(
           outputPath
         );
 
+
       // ==================================================
-      // URL
+      // PUBLIC URL
       // ==================================================
 
       const baseUrl =
         `${req.protocol}://${req.get('host')}`;
 
+
       const posterUrl =
         `${baseUrl}/posters/${filename}`;
 
-      console.log(
-        '=========================================='
-      );
+
+      // ==================================================
+      // LOGGING
+      // ==================================================
 
       console.log(
         '✅ POSTER GENERATED SUCCESSFULLY'
@@ -3391,14 +2094,32 @@ router.post(
       );
 
       console.log(
-        '=========================================='
+        '🏢 Business:',
+        finalBusinessName
       );
+
+      console.log(
+        '🎨 Theme:',
+        finalThemeColor
+      );
+
+      console.log(
+        '📐 Size:',
+        finalSize
+      );
+
+      console.log(
+        '🎨 Template:',
+        finalTemplate
+      );
+
 
       // ==================================================
       // RESPONSE
       // ==================================================
 
       return res.json({
+
         success: true,
 
         message:
@@ -3417,15 +2138,24 @@ router.post(
 
         size:
           finalSize,
+
+        themeColor:
+          finalThemeColor,
+
       });
 
-    } catch (error) {
+    }
+
+    catch (error) {
+
       console.error(
         '❌ POSTER GENERATION ERROR:',
         error
       );
 
+
       return res.status(500).json({
+
         success: false,
 
         message:
@@ -3439,6 +2169,7 @@ router.post(
     }
   }
 );
+
 
 // ======================================================
 // EXPORT
