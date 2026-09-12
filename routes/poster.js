@@ -1,3 +1,4 @@
+
 const express = require('express');
 const sharp = require('sharp');
 const fs = require('fs');
@@ -9,6 +10,7 @@ console.log('==========================================');
 console.log('🎨 POSTER ROUTER LOADED');
 console.log('Poster route file:', __filename);
 console.log('==========================================');
+
 
 // ======================================================
 // OUTPUT DIRECTORY
@@ -22,9 +24,7 @@ const OUTPUT_DIR = path.join(
 );
 
 if (!fs.existsSync(OUTPUT_DIR)) {
-  fs.mkdirSync(OUTPUT_DIR, {
-    recursive: true,
-  });
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 }
 
 
@@ -72,14 +72,11 @@ const TEMPLATES = new Set([
 
 
 // ======================================================
-// BASIC HELPERS
+// TEXT HELPERS
 // ======================================================
 
 function cleanText(value) {
-  if (
-    value === undefined ||
-    value === null
-  ) {
+  if (value === undefined || value === null) {
     return '';
   }
 
@@ -107,20 +104,50 @@ function safeFileName(value) {
 
 
 // ======================================================
-// COLOR HELPERS
+// COLOUR HELPERS
 // ======================================================
 
 function normalizeColor(value) {
   const color = cleanText(value);
 
+  // Full HEX
   if (/^#[0-9a-fA-F]{6}$/.test(color)) {
     return color;
   }
 
+  // Short HEX
   if (/^#[0-9a-fA-F]{3}$/.test(color)) {
-    return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
+    return (
+      '#' +
+      color[1] + color[1] +
+      color[2] + color[2] +
+      color[3] + color[3]
+    );
   }
 
+  // Allow common CSS colour names
+  const namedColors = {
+    green: '#2E7D32',
+    darkgreen: '#1B5E20',
+    'dark-green': '#1B5E20',
+    lightgreen: '#8BC34A',
+    'light-green': '#8BC34A',
+    yellow: '#F9A825',
+    orange: '#FF8F00',
+    red: '#D32F2F',
+    black: '#000000',
+    white: '#FFFFFF',
+    blue: '#1976D2',
+    brown: '#795548',
+  };
+
+  const named = namedColors[color.toLowerCase()];
+
+  if (named) {
+    return named;
+  }
+
+  // Agriventure default green
   return '#2E7D32';
 }
 
@@ -147,28 +174,21 @@ function rgba(hex, alpha) {
 // TEXT WRAPPING
 // ======================================================
 
-function wrapText(
-  text,
-  width,
-  fontSize
-) {
+function wrapText(text, width, fontSize) {
   const value = cleanText(text);
 
   if (!value) {
     return [];
   }
 
-  const averageCharWidth =
-    Math.max(
-      fontSize * 0.53,
-      7
-    );
+  const averageCharWidth = Math.max(
+    fontSize * 0.53,
+    7
+  );
 
   const maxChars = Math.max(
     8,
-    Math.floor(
-      width / averageCharWidth
-    )
+    Math.floor(width / averageCharWidth)
   );
 
   const words = value.split(/\s+/);
@@ -179,7 +199,7 @@ function wrapText(
 
   for (const word of words) {
 
-    // Break unusually long words.
+    // Break very long words
     if (word.length > maxChars) {
 
       if (line) {
@@ -193,24 +213,18 @@ function wrapText(
         i += maxChars
       ) {
         lines.push(
-          word.slice(
-            i,
-            i + maxChars
-          )
+          word.slice(i, i + maxChars)
         );
       }
 
       continue;
     }
 
-    const candidate =
-      line
-        ? `${line} ${word}`
-        : word;
+    const candidate = line
+      ? `${line} ${word}`
+      : word;
 
-    if (
-      candidate.length <= maxChars
-    ) {
+    if (candidate.length <= maxChars) {
       line = candidate;
     } else {
 
@@ -230,18 +244,12 @@ function wrapText(
 }
 
 
-function truncateLines(
-  lines,
-  maxLines
-) {
-  if (
-    lines.length <= maxLines
-  ) {
+function truncateLines(lines, maxLines) {
+  if (lines.length <= maxLines) {
     return lines;
   }
 
-  const result =
-    lines.slice(0, maxLines);
+  const result = lines.slice(0, maxLines);
 
   result[maxLines - 1] =
     `${result[maxLines - 1]
@@ -252,7 +260,7 @@ function truncateLines(
 
 
 // ======================================================
-// SVG TEXT BLOCK
+// GENERIC TEXT BLOCK
 // ======================================================
 
 function textBlock(
@@ -264,44 +272,36 @@ function textBlock(
   fill,
   options = {}
 ) {
+
   const {
     weight = '400',
-    lineHeight =
-      Math.round(fontSize * 1.35),
+    lineHeight = Math.round(fontSize * 1.35),
     maxLines = 4,
     anchor = 'start',
-    family =
-      'Arial, Helvetica, sans-serif',
+    family = 'Arial, Helvetica, sans-serif',
     letterSpacing = 0,
   } = options;
 
-  const lines =
-    truncateLines(
-      wrapText(
-        text,
-        width,
-        fontSize
-      ),
-      maxLines
-    );
+  const lines = truncateLines(
+    wrapText(text, width, fontSize),
+    maxLines
+  );
 
   return lines
-    .map(
-      (line, i) => `
-        <text
-          x="${x}"
-          y="${y + i * lineHeight}"
-          font-family="${family}"
-          font-size="${fontSize}px"
-          font-weight="${weight}"
-          letter-spacing="${letterSpacing}px"
-          fill="${fill}"
-          text-anchor="${anchor}"
-        >
-          ${escapeXml(line)}
-        </text>
-      `
-    )
+    .map((line, i) => `
+      <text
+        x="${x}"
+        y="${y + i * lineHeight}"
+        font-family="${family}"
+        font-size="${fontSize}px"
+        font-weight="${weight}"
+        fill="${fill}"
+        text-anchor="${anchor}"
+        letter-spacing="${letterSpacing}px"
+      >
+        ${escapeXml(line)}
+      </text>
+    `)
     .join('');
 }
 
@@ -319,13 +319,12 @@ function labelValue(
   colors,
   options = {}
 ) {
+
   const {
-    labelSize = 14,
+    labelSize = 17,
     valueSize = 19,
     maxLines = 2,
-    gap = 22,
-    valueLineHeight =
-      Math.round(valueSize * 1.28),
+    gap = 24,
   } = options;
 
   if (!cleanText(value)) {
@@ -343,14 +342,13 @@ function labelValue(
       font-size="${labelSize}px"
       font-weight="900"
       fill="${colors.label}"
-      letter-spacing="0.6"
+      letter-spacing="0.5px"
     >
       ${escapeXml(label)}
     </text>
   `;
 
-  const valueY =
-    y + gap;
+  const valueY = y + gap;
 
   svg += textBlock(
     value,
@@ -361,25 +359,26 @@ function labelValue(
     colors.value,
     {
       maxLines,
-      lineHeight: valueLineHeight,
-      weight: '500',
+      lineHeight: Math.round(
+        valueSize * 1.25
+      ),
     }
   );
 
-  const lineCount =
-    Math.min(
-      wrapText(
-        value,
-        width,
-        valueSize
-      ).length,
-      maxLines
-    );
+  const lineCount = Math.min(
+    wrapText(
+      value,
+      width,
+      valueSize
+    ).length,
+    maxLines
+  );
 
   const h =
     gap +
-    lineCount * valueLineHeight +
-    14;
+    lineCount *
+      Math.round(valueSize * 1.25) +
+    15;
 
   return {
     svg,
@@ -389,7 +388,7 @@ function labelValue(
 
 
 // ======================================================
-// DATA URI → BUFFER
+// BASE64 IMAGE CONVERTER
 // ======================================================
 
 function dataUriToBuffer(dataUri) {
@@ -398,26 +397,19 @@ function dataUriToBuffer(dataUri) {
     return null;
   }
 
-  const match =
-    String(dataUri).match(
-      /^data:([^;]+);base64,(.+)$/s
-    );
+  const match = String(dataUri).match(
+    /^data:([^;]+);base64,(.+)$/s
+  );
 
   if (!match) {
-    console.log(
-      '⚠️ Invalid data URI received.'
-    );
-
     return null;
   }
 
   try {
-
     return Buffer.from(
       match[2],
       'base64'
     );
-
   } catch (error) {
 
     console.log(
@@ -431,39 +423,29 @@ function dataUriToBuffer(dataUri) {
 
 
 // ======================================================
-// LAYOUT
+// POSTER LAYOUT
 // ======================================================
 
-function layoutFor(
-  size,
-  template
-) {
+function layoutFor(size, template) {
   const {
     width,
     height,
   } = SIZES[size];
 
-  // Slightly smaller outer margin gives
-  // the poster more usable space.
-  const margin =
-    Math.round(
-      Math.min(
-        width,
-        height
-      ) * 0.055
-    );
+  const margin = Math.round(
+    Math.min(width, height) * 0.055
+  );
 
-  // More room for the company name.
   const headerH =
     size === 'story'
-      ? 285
+      ? 300
       : size === 'landscape'
-        ? 230
-        : 260;
+        ? 235
+        : 265;
 
   const footerH =
     size === 'story'
-      ? 150
+      ? 145
       : 120;
 
   const contentY =
@@ -472,57 +454,43 @@ function layoutFor(
   const contentBottom =
     height - footerH;
 
-  const contentH =
-    Math.max(
-      300,
-      contentBottom - contentY
-    );
+  const contentH = Math.max(
+    300,
+    contentBottom - contentY
+  );
 
-  // Give the product image more width.
+  // Give the text side enough room for
+  // a proper description.
   let leftRatio = 0.48;
 
-  if (
-    template === 'productInfo'
-  ) {
+  if (template === 'productInfo') {
     leftRatio = 0.42;
   }
 
-  if (
-    template === 'minimal'
-  ) {
+  if (template === 'minimal') {
     leftRatio = 0.47;
   }
 
-  if (
-    size === 'landscape'
-  ) {
+  if (size === 'landscape') {
     leftRatio =
       template === 'productInfo'
         ? 0.44
         : 0.48;
   }
 
-  const gap =
-    Math.round(
-      Math.min(
-        width,
-        height
-      ) * 0.018
-    );
+  const gap = Math.round(
+    Math.min(width, height) * 0.018
+  );
 
   const innerW =
     width - margin * 2;
 
-  const leftW =
-    Math.round(
-      (innerW - gap) *
-        leftRatio
-    );
+  const leftW = Math.round(
+    (innerW - gap) * leftRatio
+  );
 
   const rightW =
-    innerW -
-    gap -
-    leftW;
+    innerW - gap - leftW;
 
   return {
     margin,
@@ -549,7 +517,7 @@ function layoutFor(
 
 
 // ======================================================
-// TEMPLATE COLORS
+// TEMPLATE COLOURS
 // ======================================================
 
 function templateColors(
@@ -558,32 +526,40 @@ function templateColors(
 ) {
 
   const light = {
+
     bg: '#F4F8F4',
+
     panel: '#FFFFFF',
+
     text: '#202520',
+
     muted: '#626862',
+
     accent: theme,
+
     accentSoft:
       rgba(theme, 0.10),
+
     border: '#DDE7DD',
+
     footer:
       rgba(theme, 0.12),
+
     white: '#FFFFFF',
   };
 
 
-  if (
-    template ===
-    'boldProduct'
-  ) {
+  if (template === 'boldProduct') {
 
     return {
       ...light,
 
       bg: theme,
+
       panel: '#FFFFFF',
 
       text: '#123016',
+
       muted: '#EAF5EA',
 
       accent: '#FFFFFF',
@@ -602,18 +578,17 @@ function templateColors(
   }
 
 
-  if (
-    template ===
-    'premiumAgri'
-  ) {
+  if (template === 'premiumAgri') {
 
     return {
       ...light,
 
       bg: '#102B16',
+
       panel: '#173A1E',
 
       text: '#FFFFFF',
+
       muted: '#D7E8D9',
 
       accent: theme,
@@ -631,18 +606,17 @@ function templateColors(
   }
 
 
-  if (
-    template ===
-    'pestControl'
-  ) {
+  if (template === 'pestControl') {
 
     return {
       ...light,
 
       bg: '#FFF8ED',
+
       panel: '#FFFFFF',
 
       text: '#2C2418',
+
       muted: '#6F665A',
 
       accent: theme,
@@ -656,18 +630,17 @@ function templateColors(
   }
 
 
-  if (
-    template ===
-    'promotion'
-  ) {
+  if (template === 'promotion') {
 
     return {
       ...light,
 
       bg: '#FFFDF6',
+
       panel: '#FFFFFF',
 
       text: '#25251F',
+
       muted: '#6C6A5F',
 
       accent: theme,
@@ -681,18 +654,17 @@ function templateColors(
   }
 
 
-  if (
-    template ===
-    'socialMedia'
-  ) {
+  if (template === 'socialMedia') {
 
     return {
       ...light,
 
       bg: '#F1F7F1',
+
       panel: '#FFFFFF',
 
       text: '#17301B',
+
       muted: '#5D6B60',
 
       accent: theme,
@@ -707,18 +679,17 @@ function templateColors(
   }
 
 
-  if (
-    template ===
-    'minimal'
-  ) {
+  if (template === 'minimal') {
 
     return {
       ...light,
 
       bg: '#FFFFFF',
+
       panel: '#FFFFFF',
 
       text: '#171A17',
+
       muted: '#666B66',
 
       accent: '#202520',
@@ -757,14 +728,7 @@ function backgroundSvg(
   `;
 
 
-  // ----------------------------------------------------
-  // BOLD PRODUCT
-  // ----------------------------------------------------
-
-  if (
-    template ===
-    'boldProduct'
-  ) {
+  if (template === 'boldProduct') {
 
     svg += `
       <circle
@@ -774,7 +738,9 @@ function backgroundSvg(
         fill="#FFFFFF"
         opacity="0.10"
       />
+    `;
 
+    svg += `
       <circle
         cx="${width * 0.04}"
         cy="${height * 0.92}"
@@ -786,14 +752,7 @@ function backgroundSvg(
   }
 
 
-  // ----------------------------------------------------
-  // PREMIUM AGRI
-  // ----------------------------------------------------
-
-  if (
-    template ===
-    'premiumAgri'
-  ) {
+  if (template === 'premiumAgri') {
 
     svg += `
       <rect
@@ -807,7 +766,9 @@ function backgroundSvg(
         stroke-width="4"
         opacity="0.75"
       />
+    `;
 
+    svg += `
       <circle
         cx="${width - 80}"
         cy="80"
@@ -818,14 +779,7 @@ function backgroundSvg(
   }
 
 
-  // ----------------------------------------------------
-  // PEST CONTROL
-  // ----------------------------------------------------
-
-  if (
-    template ===
-    'pestControl'
-  ) {
+  if (template === 'pestControl') {
 
     svg += `
       <rect
@@ -835,7 +789,9 @@ function backgroundSvg(
         height="${Math.round(height * 0.22)}"
         fill="${theme}"
       />
+    `;
 
+    svg += `
       <path
         d="
           M0 ${height * 0.22}
@@ -852,14 +808,7 @@ function backgroundSvg(
   }
 
 
-  // ----------------------------------------------------
-  // PROMOTION
-  // ----------------------------------------------------
-
-  if (
-    template ===
-    'promotion'
-  ) {
+  if (template === 'promotion') {
 
     svg += `
       <rect
@@ -869,7 +818,9 @@ function backgroundSvg(
         height="${Math.round(height * 0.18)}"
         fill="${theme}"
       />
+    `;
 
+    svg += `
       <circle
         cx="${width * 0.90}"
         cy="${height * 0.10}"
@@ -881,14 +832,7 @@ function backgroundSvg(
   }
 
 
-  // ----------------------------------------------------
-  // PRODUCT INFO
-  // ----------------------------------------------------
-
-  if (
-    template ===
-    'productInfo'
-  ) {
+  if (template === 'productInfo') {
 
     svg += `
       <rect
@@ -898,7 +842,9 @@ function backgroundSvg(
         height="${height}"
         fill="${theme}"
       />
+    `;
 
+    svg += `
       <rect
         x="${Math.round(width * 0.23)}"
         y="0"
@@ -910,14 +856,7 @@ function backgroundSvg(
   }
 
 
-  // ----------------------------------------------------
-  // SOCIAL MEDIA
-  // ----------------------------------------------------
-
-  if (
-    template ===
-    'socialMedia'
-  ) {
+  if (template === 'socialMedia') {
 
     svg += `
       <rect
@@ -927,7 +866,9 @@ function backgroundSvg(
         height="${Math.round(height * 0.13)}"
         fill="${theme}"
       />
+    `;
 
+    svg += `
       <circle
         cx="${width * 0.93}"
         cy="${height * 0.08}"
@@ -939,37 +880,30 @@ function backgroundSvg(
   }
 
 
-  // ----------------------------------------------------
-  // MODERN FARM
-  // ----------------------------------------------------
-
-  if (
-    template ===
-    'modernFarm'
-  ) {
+  if (template === 'modernFarm') {
 
     svg += `
       <path
         d="
           M0 ${height * 0.84}
-          C ${width * 0.18} ${height * 0.69},
-            ${width * 0.36} ${height * 0.93},
-            ${width * 0.56} ${height * 0.79}
-
-          C ${width * 0.75} ${height * 0.66},
-            ${width * 0.88} ${height * 0.87},
-            ${width} ${height * 0.74}
-
+          C ${width * .18} ${height * .69},
+            ${width * .36} ${height * .93},
+            ${width * .56} ${height * .79}
+          C ${width * .75} ${height * .66},
+            ${width * .88} ${height * .87},
+            ${width} ${height * .74}
           V${height}
           H0Z
         "
         fill="${rgba(theme, 0.12)}"
       />
+    `;
 
+    svg += `
       <circle
-        cx="${width * 0.88}"
-        cy="${height * 0.14}"
-        r="${Math.min(width, height) * 0.075}"
+        cx="${width * .88}"
+        cy="${height * .14}"
+        r="${Math.min(width, height) * .075}"
         fill="${theme}"
         opacity="0.18"
       />
@@ -994,129 +928,18 @@ function drawHeader(
   businessName,
   location
 ) {
-
-  const x =
-    layout.margin;
+  const x = layout.margin;
 
   const dark =
-    template ===
-      'boldProduct' ||
-    template ===
-      'premiumAgri';
+    template === 'boldProduct' ||
+    template === 'premiumAgri';
 
-  // Larger company name.
   const businessSize =
     height >= 1800
       ? 64
       : width >= 1800
         ? 60
         : 56;
-
-  let svg = '';
-
-
-  // ----------------------------------------------------
-  // PRODUCT INFO
-  // ----------------------------------------------------
-
-  if (
-    template ===
-    'productInfo'
-  ) {
-
-    svg += `
-      <text
-        x="${x}"
-        y="${layout.headerH * 0.48}"
-        font-family="Trebuchet MS, Arial, Helvetica, sans-serif"
-        font-size="24px"
-        font-weight="900"
-        fill="#FFFFFF"
-        letter-spacing="1.5"
-      >
-        AGRIVENTURE
-      </text>
-
-      <text
-        x="${x}"
-        y="${layout.headerH * 0.48 + 40}"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="15px"
-        font-weight="700"
-        fill="#E8F5E9"
-        letter-spacing="2"
-      >
-        PRODUCT INFO
-      </text>
-    `;
-
-    return svg;
-  }
-
-
-  // ----------------------------------------------------
-  // PEST CONTROL
-  // ----------------------------------------------------
-
-  if (
-    template ===
-    'pestControl'
-  ) {
-
-    svg += `
-      <text
-        x="${x}"
-        y="48"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="17px"
-        font-weight="900"
-        fill="#FFFFFF"
-        letter-spacing="2.5"
-      >
-        PEST CONTROL
-      </text>
-    `;
-
-    svg += textBlock(
-      businessName,
-      x,
-      105,
-      width * 0.60,
-      businessSize,
-      '#FFFFFF',
-      {
-        weight: '900',
-        maxLines: 2,
-        lineHeight:
-          businessSize * 1.05,
-        family:
-          'Trebuchet MS, Arial, Helvetica, sans-serif',
-      }
-    );
-
-    if (location) {
-
-      svg += textBlock(
-        location,
-        x,
-        220,
-        width * 0.58,
-        18,
-        '#F3FFF4',
-        {
-          weight: '600',
-          maxLines: 1,
-        }
-      );
-    }
-
-    return svg;
-  }
-
-
-  // ----------------------------------------------------
-  // STANDARD HEADER
-  // ----------------------------------------------------
 
   const color =
     dark
@@ -1128,81 +951,164 @@ function drawHeader(
       ? '#DCEBDD'
       : colors.muted;
 
+  let svg = '';
 
-  const headerY =
-    template ===
-      'promotion'
-      ? 112
-      : layout.margin +
-        businessSize;
+  // ====================================================
+  // PRODUCT INFO
+  // ====================================================
 
+  if (template === 'productInfo') {
+    svg += `
+      <text
+        x="${x}"
+        y="${layout.headerH * 0.56}"
+        font-family="Trebuchet MS, Arial, sans-serif"
+        font-size="34px"
+        font-weight="900"
+        fill="#FFFFFF"
+        letter-spacing="1.5px"
+      >
+        AGRIVENTURE
+      </text>
 
-  // Reserve space on the right for the logo.
-  const companyWidth =
-    Math.min(
-      width * 0.62,
-      width -
-        layout.margin * 2 -
-        180
+      <rect
+        x="${x}"
+        y="${layout.headerH * 0.68}"
+        width="110"
+        height="5"
+        rx="2.5"
+        fill="#FFFFFF"
+        opacity="0.8"
+      />
+
+      <text
+        x="${x}"
+        y="${layout.headerH * 0.84}"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="17px"
+        font-weight="700"
+        fill="#E8F5E9"
+        letter-spacing="1px"
+      >
+        PRODUCT INFO
+      </text>
+    `;
+
+    return svg;
+  }
+
+  // ====================================================
+  // PEST CONTROL
+  // ====================================================
+
+  if (template === 'pestControl') {
+    svg += `
+      <text
+        x="${x}"
+        y="52"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="17px"
+        font-weight="900"
+        fill="#FFFFFF"
+        letter-spacing="2.5px"
+      >
+        PEST CONTROL
+      </text>
+    `;
+
+    svg += textBlock(
+      businessName,
+      x,
+      120,
+      width * 0.72,
+      businessSize,
+      '#FFFFFF',
+      {
+        weight: '900',
+        maxLines: 2,
+        lineHeight: businessSize * 1.04,
+        family: 'Trebuchet MS, Arial, sans-serif',
+        letterSpacing: 0.5,
+      }
     );
 
+    if (location) {
+      svg += textBlock(
+        location,
+        x,
+        225,
+        width * 0.65,
+        21,
+        '#F3FFF4',
+        {
+          weight: '600',
+          maxLines: 1,
+        }
+      );
+    }
+
+    return svg;
+  }
+
+  // ====================================================
+  // BRAND ACCENT
+  // ====================================================
+
+  svg += `
+    <rect
+      x="${x}"
+      y="${layout.margin - 16}"
+      width="74"
+      height="6"
+      rx="3"
+      fill="${dark ? '#FFFFFF' : colors.accent}"
+    />
+  `;
+
+  // ====================================================
+  // COMPANY NAME
+  // ====================================================
 
   svg += textBlock(
     businessName,
     x,
-    headerY,
-    companyWidth,
+    layout.margin + businessSize - 2,
+    width * 0.70,
     businessSize,
     color,
     {
       weight: '900',
       maxLines: 2,
-      lineHeight:
-        businessSize * 1.05,
+      lineHeight: businessSize * 1.03,
       family:
         'Trebuchet MS, Arial, Helvetica, sans-serif',
-      letterSpacing: 0.3,
+      letterSpacing: 0.2,
     }
   );
 
-
-  // Accent underline.
-  const lineY =
-    headerY +
-    businessSize * 1.18;
-
-  svg += `
-    <rect
-      x="${x}"
-      y="${lineY}"
-      width="${Math.min(125, width * 0.12)}"
-      height="7"
-      rx="3.5"
-      fill="${colors.accent}"
-    />
-  `;
-
+  // ====================================================
+  // LOCATION
+  // ====================================================
 
   if (location) {
-
     svg += textBlock(
       location,
       x,
-      lineY + 30,
-      width * 0.58,
-      18,
+      layout.margin +
+        businessSize * 2.15,
+      width * 0.62,
+      20,
       muted,
       {
         weight: '600',
         maxLines: 1,
+        letterSpacing: 0.2,
       }
     );
   }
 
-
   return svg;
 }
-
 
 // ======================================================
 // CONTENT
@@ -1230,10 +1136,8 @@ function drawContent(
 
 
   const dark =
-    template ===
-      'boldProduct' ||
-    template ===
-      'premiumAgri';
+    template === 'boldProduct' ||
+    template === 'premiumAgri';
 
 
   const titleColor =
@@ -1261,18 +1165,38 @@ function drawContent(
 
 
   const panel =
-    colors.panel;
+    dark
+      ? colors.panel
+      : colors.panel;
 
 
-  const p = 22;
+  const p = 24;
 
 
   let svg = '';
 
 
-  // ----------------------------------------------------
-  // PANELS
-  // ----------------------------------------------------
+  const titleSize =
+    height >= 1800
+      ? 48
+      : width >= 1800
+        ? 46
+        : 42;
+
+
+  const detailSize =
+    height >= 1800
+      ? 18
+      : 19;
+
+
+  const detailWidth =
+    layout.leftW - p * 2;
+
+
+  // ====================================================
+  // LEFT CONTENT PANEL
+  // ====================================================
 
   svg += `
     <rect
@@ -1280,18 +1204,7 @@ function drawContent(
       y="${layout.contentY}"
       width="${layout.leftW}"
       height="${layout.contentH}"
-      rx="26"
-      fill="${panel}"
-      stroke="${border}"
-      stroke-width="2"
-    />
-
-    <rect
-      x="${layout.rightX}"
-      y="${layout.contentY}"
-      width="${layout.rightW}"
-      height="${layout.contentH}"
-      rx="26"
+      rx="24"
       fill="${panel}"
       stroke="${border}"
       stroke-width="2"
@@ -1299,22 +1212,27 @@ function drawContent(
   `;
 
 
-  // ----------------------------------------------------
+  // ====================================================
+  // RIGHT IMAGE PANEL
+  // ====================================================
+
+  svg += `
+    <rect
+      x="${layout.rightX}"
+      y="${layout.contentY}"
+      width="${layout.rightW}"
+      height="${layout.contentH}"
+      rx="24"
+      fill="${panel}"
+      stroke="${border}"
+      stroke-width="2"
+    />
+  `;
+
+
+  // ====================================================
   // PRODUCT TITLE
-  // ----------------------------------------------------
-
-  const titleSize =
-    height >= 1800
-      ? 50
-      : width >= 1800
-        ? 48
-        : 44;
-
-
-  const detailWidth =
-    layout.leftW -
-    p * 2;
-
+  // ====================================================
 
   const titleLines =
     truncateLines(
@@ -1337,9 +1255,9 @@ function drawContent(
             58 +
             i *
               titleSize *
-              1.06
+              1.08
           }"
-          font-family="Trebuchet MS, Arial, Helvetica, sans-serif"
+          font-family="Arial, Helvetica, sans-serif"
           font-size="${titleSize}px"
           font-weight="900"
           fill="${titleColor}"
@@ -1356,201 +1274,64 @@ function drawContent(
     58 +
     titleLines.length *
       titleSize *
-      1.06 +
-    24;
+      1.08 +
+    26;
 
 
-  // ----------------------------------------------------
-  // DESCRIPTION SECTION
-  // ----------------------------------------------------
-
-  if (
-    cleanText(description)
-  ) {
-
-    const descriptionSize =
-      height >= 1800
-        ? 23
-        : 21;
-
-
-    const descriptionWidth =
-      detailWidth - 30;
-
-
-    const descriptionLines =
-      truncateLines(
-        wrapText(
-          description,
-          descriptionWidth,
-          descriptionSize
-        ),
-        4
-      );
-
-
-    const descriptionLineHeight =
-      Math.round(
-        descriptionSize * 1.32
-      );
-
-
-    const descriptionBoxH =
-      Math.max(
-        108,
-        54 +
-          descriptionLines.length *
-            descriptionLineHeight
-      );
-
-
-    svg += `
-      <rect
-        x="${layout.leftX + p - 6}"
-        y="${y}"
-        width="${layout.leftW - (p - 6) * 2}"
-        height="${descriptionBoxH}"
-        rx="18"
-        fill="${colors.accentSoft}"
-      />
-
-      <rect
-        x="${layout.leftX + p - 6}"
-        y="${y}"
-        width="7"
-        height="${descriptionBoxH}"
-        rx="3.5"
-        fill="${colors.accent}"
-      />
-
-      <text
-        x="${layout.leftX + p + 14}"
-        y="${y + 28}"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="13px"
-        font-weight="900"
-        fill="${titleColor}"
-        letter-spacing="1.4"
-      >
-        DESCRIPTION
-      </text>
-    `;
-
-
-    svg += descriptionLines
-      .map(
-        (line, i) => `
-          <text
-            x="${layout.leftX + p + 14}"
-            y="${
-              y +
-              58 +
-              i *
-                descriptionLineHeight
-            }"
-            font-family="Trebuchet MS, Arial, Helvetica, sans-serif"
-            font-size="${descriptionSize}px"
-            font-weight="600"
-            fill="${textColor}"
-          >
-            ${escapeXml(line)}
-          </text>
-        `
-      )
-      .join('');
-
-
-    y +=
-      descriptionBoxH +
-      18;
-  }
-
-
-  // ----------------------------------------------------
-  // PROMOTION SPACE
-  // ----------------------------------------------------
-
-  let promoH = 0;
-
-  if (
-    cleanText(promoText)
-  ) {
-
-    promoH =
-      Math.min(
-        105,
-        Math.max(
-          76,
-          layout.contentH *
-            0.14
-        )
-      );
-  }
-
-
-  const detailsBottom =
-    layout.contentY +
-    layout.contentH -
-    promoH -
-    34;
-
-
-  // ----------------------------------------------------
-  // DETAILS
-  // ----------------------------------------------------
+  // ====================================================
+  // PRODUCT DETAILS
+  // ====================================================
 
   const details = [
 
-    [
-      'ACTIVE INGREDIENT',
-      activeIngredient,
-      2,
-    ],
+  // DESCRIPTION gets priority
+  [
+    'DESCRIPTION',
+    description,
+    4,
+  ],
 
-    [
-      'TARGETS',
-      targetPests,
-      2,
-    ],
+  [
+    'ACTIVE INGREDIENT',
+    activeIngredient,
+    2,
+  ],
 
-    [
-      'CROPS',
-      crops,
-      2,
-    ],
+  [
+    'TARGETS',
+    targetPests,
+    2,
+  ],
 
-    [
-      'USAGE',
-      usage,
-      3,
-    ],
-  ];
+  [
+    'CROPS',
+    crops,
+    2,
+  ],
 
+  [
+    'USAGE',
+    usage,
+    3,
+  ],
+];
 
-  const detailSize =
-    height >= 1800
-      ? 20
-      : 19;
+  for (const [
+    label,
+    value,
+    maxLines,
+  ] of details) {
 
-
-  for (
-    const [
-      label,
-      value,
-      maxLines,
-    ] of details
-  ) {
-
-    if (
-      !cleanText(value)
-    ) {
+    if (!cleanText(value)) {
       continue;
     }
 
 
     if (
       y >
-      detailsBottom - 60
+      layout.contentY +
+      layout.contentH -
+      65
     ) {
       break;
     }
@@ -1564,8 +1345,7 @@ function drawContent(
         y,
         detailWidth,
         {
-          label:
-            titleColor,
+          label: titleColor,
 
           value:
             muted === colors.muted
@@ -1573,49 +1353,50 @@ function drawContent(
               : muted,
         },
         {
-          labelSize: 13,
-          valueSize: detailSize,
-          maxLines,
-          gap: 21,
+         labelSize:
+          label === 'DESCRIPTION'
+            ? 15
+            : 13,
+
+        valueSize:
+          label === 'DESCRIPTION'
+            ? detailSize + 2
+            : detailSize,
+
+        maxLines,
+        lineHeight:
+          label === 'DESCRIPTION'
+            ? Math.round((detailSize + 2) * 1.38)
+            : Math.round(detailSize * 1.28),
         }
       );
 
 
     svg += result.svg;
 
-    y +=
-      result.height +
-      4;
+    y += result.height;
   }
 
 
-  // ----------------------------------------------------
+    // ====================================================
   // PRODUCT IMAGE CARD
-  // ----------------------------------------------------
+  // ====================================================
 
   const imagePad = 10;
 
-
   const productCardX =
-    layout.rightX +
-    imagePad;
-
+    layout.rightX + imagePad;
 
   const productCardY =
-    layout.contentY +
-    imagePad;
-
+    layout.contentY + imagePad;
 
   const productCardW =
-    layout.rightW -
-    imagePad * 2;
-
+    layout.rightW - imagePad * 2;
 
   const productCardH =
-    layout.contentH -
-    imagePad * 2;
+    layout.contentH - imagePad * 2;
 
-
+  // Large product card
   svg += `
     <rect
       x="${productCardX}"
@@ -1630,37 +1411,42 @@ function drawContent(
     />
   `;
 
-
-  // Decorative accent line.
+  // Small accent line at the top of the product card
   svg += `
     <rect
       x="${productCardX + 24}"
       y="${productCardY + 18}"
-      width="${Math.min(
-        90,
-        productCardW * 0.25
-      )}"
+      width="${Math.min(90, productCardW * 0.25)}"
       height="6"
       rx="3"
       fill="${colors.accent}"
     />
   `;
 
+  // No "PRODUCT" text here.
+  // The actual uploaded product image will fill this card.
 
-  // ----------------------------------------------------
+
+  // ====================================================
   // PROMOTION
-  // ----------------------------------------------------
+  // ====================================================
 
-  if (
-    cleanText(promoText)
-  ) {
+  if (promoText) {
+
+    const promoH =
+      Math.min(
+        105,
+        Math.max(
+          72,
+          layout.contentH * 0.14
+        )
+      );
 
     const promoY =
       layout.contentY +
       layout.contentH -
       promoH -
       22;
-
 
     svg += `
       <rect
@@ -1673,12 +1459,10 @@ function drawContent(
       />
     `;
 
-
     svg += textBlock(
       promoText,
       layout.leftX + 18,
-      promoY +
-        promoH * 0.62,
+      promoY + promoH * 0.62,
       layout.leftW - 36,
       22,
       '#FFFFFF',
@@ -1687,38 +1471,34 @@ function drawContent(
         maxLines: 2,
         lineHeight: 27,
         anchor: 'start',
-        family:
-          'Trebuchet MS, Arial, Helvetica, sans-serif',
       }
     );
   }
 
-
   return svg;
 }
-
 
 // ======================================================
 // TEST ROUTE
 // ======================================================
 
-router.get(
-  '/test',
-  (req, res) => {
+router.get('/test', (req, res) => {
 
-    return res.status(200).json({
-      success: true,
+  res.status(200).json({
 
-      message:
-        'Poster API is connected correctly.',
+    success: true,
 
-      route:
-        '/api/poster/test',
+    message:
+      'Poster API is connected correctly.',
 
-      method: 'GET',
-    });
-  }
-);
+    route:
+      '/api/poster/test',
+
+    method:
+      'GET',
+
+  });
+});
 
 
 // ======================================================
@@ -1759,21 +1539,15 @@ router.post(
       // ==================================================
 
       const finalBusinessName =
-        cleanText(
-          businessName
-        );
+        cleanText(businessName);
 
 
       const finalProductName =
-        cleanText(
-          productName
-        );
+        cleanText(productName);
 
 
       const finalThemeColor =
-        normalizeColor(
-          themeColor
-        );
+        normalizeColor(themeColor);
 
 
       const requestedTemplate =
@@ -1781,9 +1555,7 @@ router.post(
 
 
       const finalTemplate =
-        TEMPLATES.has(
-          requestedTemplate
-        )
+        TEMPLATES.has(requestedTemplate)
           ? requestedTemplate
           : 'modernFarm';
 
@@ -1802,28 +1574,28 @@ router.post(
       // VALIDATION
       // ==================================================
 
-      if (
-        !finalBusinessName
-      ) {
+      if (!finalBusinessName) {
 
         return res.status(400).json({
+
           success: false,
 
           message:
             'Business name is required.',
+
         });
       }
 
 
-      if (
-        !finalProductName
-      ) {
+      if (!finalProductName) {
 
         return res.status(400).json({
+
           success: false,
 
           message:
             'Product name is required.',
+
         });
       }
 
@@ -1839,7 +1611,7 @@ router.post(
 
 
       // ==================================================
-      // COLORS + LAYOUT
+      // COLOUR + LAYOUT
       // ==================================================
 
       const colors =
@@ -1856,91 +1628,41 @@ router.post(
         );
 
 
-      console.log(
-        '=========================================='
-      );
+      // ==================================================
+      // SVG START
+      // ==================================================
 
-      console.log(
-        '📢 PRODUCT POSTER GENERATION'
-      );
-
-      console.log(
-        '=========================================='
-      );
-
-      console.log(
-        'Business:',
-        finalBusinessName
-      );
-
-      console.log(
-        'Product:',
-        finalProductName
-      );
-
-      console.log(
-        'Template:',
-        finalTemplate
-      );
-
-      console.log(
-        'Size:',
-        finalSize
-      );
-
-      console.log(
-        'Dimensions:',
-        `${width}x${height}`
-      );
-
-      console.log(
-        'Logo supplied:',
-        Boolean(logo)
-      );
-
-      console.log(
-        'Product image supplied:',
-        Boolean(productImage)
-      );
-
-      console.log(
-        '=========================================='
-      );
+     let svg = `<svg
+      width="${width}"
+      height="${height}"
+      viewBox="0 0 ${width} ${height}"
+      xmlns="http://www.w3.org/2000/svg">`;
 
 
       // ==================================================
-      // BASE SVG
+      // SVG DEFINITIONS
       // ==================================================
 
-      let svg =
-        `<?xml version="1.0" encoding="UTF-8"?>\n` +
-        `<svg ` +
-        `width="${width}" ` +
-        `height="${height}" ` +
-        `viewBox="0 0 ${width} ${height}" ` +
-        `xmlns="http://www.w3.org/2000/svg">`;
-
+      svg += '<defs>';
 
       svg += `
-        <defs>
-
-          <filter
-            id="shadow"
-            x="-20%"
-            y="-20%"
-            width="140%"
-            height="140%"
-          >
-            <feDropShadow
-              dx="0"
-              dy="6"
-              stdDeviation="8"
-              flood-opacity="0.16"
-            />
-          </filter>
-
-        </defs>
+        <filter
+          id="shadow"
+          x="-20%"
+          y="-20%"
+          width="140%"
+          height="140%"
+        >
+          <feDropShadow
+            dx="0"
+            dy="6"
+            stdDeviation="8"
+            flood-opacity="0.16"
+          />
+        </filter>
       `;
+
+      svg += '</defs>';
 
 
       // ==================================================
@@ -1986,34 +1708,22 @@ router.post(
             finalProductName,
 
           description:
-            cleanText(
-              description
-            ),
+            cleanText(description),
 
           activeIngredient:
-            cleanText(
-              activeIngredient
-            ),
+            cleanText(activeIngredient),
 
           targetPests:
-            cleanText(
-              targetPests
-            ),
+            cleanText(targetPests),
 
           crops:
-            cleanText(
-              crops
-            ),
+            cleanText(crops),
 
           usage:
-            cleanText(
-              usage
-            ),
+            cleanText(usage),
 
           promoText:
-            cleanText(
-              promoText
-            ),
+            cleanText(promoText),
         },
         finalThemeColor
       );
@@ -2038,12 +1748,14 @@ router.post(
       `;
 
 
+      // ==================================================
+      // CONTACT DETAILS
+      // ==================================================
+
       const contacts = [];
 
 
-      if (
-        cleanText(phone)
-      ) {
+      if (cleanText(phone)) {
 
         contacts.push(
           `Tel: ${cleanText(phone)}`
@@ -2051,9 +1763,7 @@ router.post(
       }
 
 
-      if (
-        cleanText(email)
-      ) {
+      if (cleanText(email)) {
 
         contacts.push(
           `Email: ${cleanText(email)}`
@@ -2061,18 +1771,15 @@ router.post(
       }
 
 
-      if (
-        contacts.length
-      ) {
+      if (contacts.length) {
 
         svg += textBlock(
           contacts.join(
             '   •   '
           ),
           width / 2,
-          footerY + 45,
-          width -
-            layout.margin * 2,
+          footerY + 48,
+          width - layout.margin * 2,
           18,
           colors.text,
           {
@@ -2085,10 +1792,14 @@ router.post(
       }
 
 
+      // ==================================================
+      // FOOTER LABEL
+      // ==================================================
+
       svg += `
         <text
           x="${width / 2}"
-          y="${height - 20}"
+          y="${height - 22}"
           font-family="Arial, Helvetica, sans-serif"
           font-size="13px"
           font-weight="600"
@@ -2100,11 +1811,15 @@ router.post(
       `;
 
 
+      // ==================================================
+      // CLOSE SVG
+      // ==================================================
+
       svg += '</svg>';
 
 
       // ==================================================
-      // RENDER SVG
+      // CREATE IMAGE
       // ==================================================
 
       let image =
@@ -2118,55 +1833,29 @@ router.post(
       // ==================================================
 
       const logoBuffer =
-        dataUriToBuffer(
-          logo
-        );
+        dataUriToBuffer(logo);
 
 
-      if (
-        logoBuffer
-      ) {
+      if (logoBuffer) {
 
         try {
 
-          console.log(
-            '🖼️ Processing business logo...'
-          );
-
-
-          // Larger logo depending on poster size.
           const logoBox =
             finalSize === 'story'
-              ? 170
-              : finalSize === 'landscape'
-                ? 150
-                : 155;
-
-
-          // Trim empty edges around logo.
-          const trimmedLogo =
-            await sharp(
-              logoBuffer
-            )
-              .ensureAlpha()
-              .trim({
-                background: '#FFFFFF',
-                threshold: 22,
-              })
-              .png()
-              .toBuffer();
+              ? 155
+              : 125;
 
 
           const logoProcessed =
-            await sharp(
-              trimmedLogo
-            )
+            await sharp(logoBuffer)
+
+              .ensureAlpha()
+
               .resize(
-                logoBox - 24,
-                logoBox - 24,
+                logoBox,
+                logoBox,
                 {
                   fit: 'contain',
-                  position: 'centre',
 
                   background: {
                     r: 255,
@@ -2176,117 +1865,35 @@ router.post(
                   },
                 }
               )
+
               .png()
+
               .toBuffer();
 
 
-          // ------------------------------------------------
-          // WHITE LOGO BADGE
-          // ------------------------------------------------
-
-          const badgeSvg = `
-            <svg
-              width="${logoBox}"
-              height="${logoBox}"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-
-              <rect
-                x="0"
-                y="0"
-                width="${logoBox}"
-                height="${logoBox}"
-                rx="24"
-                fill="#FFFFFF"
-                fill-opacity="0.98"
-                stroke="${finalThemeColor}"
-                stroke-opacity="0.14"
-                stroke-width="2"
-              />
-
-            </svg>
-          `;
-
-
-          const badgeBuffer =
-            Buffer.from(
-              badgeSvg
-            );
-
-
-          const logoLeft =
-            width -
-            layout.margin -
-            logoBox;
-
-
-          const logoTop =
-            finalTemplate ===
-            'pestControl'
-              ? 22
-              : finalTemplate ===
-                'promotion'
-                ? 25
-                : layout.margin - 5;
-
-
-          // Badge first.
           image =
             image.composite([
               {
-                input:
-                  badgeBuffer,
-
-                left:
-                  Math.round(
-                    logoLeft
-                  ),
+                input: logoProcessed,
 
                 top:
-                  Math.round(
-                    logoTop
-                  ),
-              },
-            ]);
-
-
-          // Logo second.
-          image =
-            image.composite([
-              {
-                input:
-                  logoProcessed,
+                  layout.margin,
 
                 left:
-                  Math.round(
-                    logoLeft + 12
-                  ),
-
-                top:
-                  Math.round(
-                    logoTop + 12
-                  ),
+                  width -
+                  layout.margin -
+                  logoBox,
               },
             ]);
+        }
 
-
-          console.log(
-            '✅ Logo added to poster.'
-          );
-
-        } catch (error) {
+        catch (error) {
 
           console.log(
             '⚠️ Logo processing failed:',
             error.message
           );
         }
-
-      } else {
-
-        console.log(
-          '⚠️ No usable logo data received.'
-        );
       }
 
 
@@ -2300,136 +1907,112 @@ router.post(
         );
 
 
-      if (
-        productBuffer
-      ) {
+      if (productBuffer) {
 
         try {
 
-          console.log(
-            '🖼️ Processing product image...'
-          );
+          const cardW =
+            Math.max(
+              160,
+              layout.rightW - 56
+            );
 
 
-          // ------------------------------------------------
-          // LARGE PRODUCT IMAGE AREA
-          // ------------------------------------------------
-
-          const imageAreaW =
+          const cardH =
             Math.max(
               180,
               Math.round(
-                layout.rightW -
-                28
-              )
+                layout.contentH * 0.62
+              ) - 12
             );
 
 
-          const imageAreaH =
-            Math.max(
-              220,
-              Math.round(
-                layout.contentH -
-                28
-              )
-            );
+          const processed =
+            await sharp(productBuffer)
 
-
-          // ------------------------------------------------
-          // STEP 1:
-          // TRIM EMPTY / WHITE MARGINS
-          // ------------------------------------------------
-
-          const trimmedProduct =
-            await sharp(
-              productBuffer
-            )
               .ensureAlpha()
+
               .trim({
-                background: '#FFFFFF',
-                threshold: 30,
+                threshold: 22,
               })
-              .png()
-              .toBuffer();
 
+              .flatten({
+                background: '#FFFFFF',
+              })
 
-          // ------------------------------------------------
-          // STEP 2:
-          // MAKE PRODUCT AS LARGE AS POSSIBLE
-          // ------------------------------------------------
-
-          const processedProduct =
-            await sharp(
-              trimmedProduct
-            )
               .resize(
-                imageAreaW,
-                imageAreaH,
+                cardW,
+                cardH,
                 {
                   fit: 'contain',
 
                   position: 'centre',
 
-                  background: {
-                    r: 255,
-                    g: 255,
-                    b: 255,
-                    alpha: 0,
-                  },
+                  background: '#FFFFFF',
                 }
               )
+
               .png()
+
               .toBuffer();
 
 
-          // ------------------------------------------------
-          // STEP 3:
-          // COMPOSITE INTO THE PRODUCT CARD
-          // ------------------------------------------------
+          const metadata =
+            await sharp(
+              processed
+            ).metadata();
+
+
+          const actualWidth =
+            metadata.width ||
+            cardW;
+
+
+          const actualHeight =
+            metadata.height ||
+            cardH;
+
+
+          const left =
+            Math.round(
+              layout.rightX +
+              28 +
+              (cardW - actualWidth) / 2
+            );
+
+
+          const top =
+            Math.round(
+              layout.contentY +
+              28 +
+              (cardH - actualHeight) / 2
+            );
+
 
           image =
             image.composite([
               {
-                input:
-                  processedProduct,
+                input: processed,
 
-                left:
-                  Math.round(
-                    layout.rightX +
-                    14
-                  ),
+                top,
 
-                top:
-                  Math.round(
-                    layout.contentY +
-                    14
-                  ),
+                left,
               },
             ]);
+        }
 
-
-          console.log(
-            '✅ Product image added and margins trimmed.'
-          );
-
-        } catch (error) {
+        catch (error) {
 
           console.log(
             '⚠️ Product image processing failed:',
             error.message
           );
         }
-
-      } else {
-
-        console.log(
-          '⚠️ No usable product image received.'
-        );
       }
 
 
       // ==================================================
-      // SAVE POSTER
+      // FILE NAME
       // ==================================================
 
       const timestamp =
@@ -2437,13 +2020,15 @@ router.post(
 
 
       const filename =
-        `${safeFileName(
-          finalBusinessName
-        ) || 'business'}-` +
-        `${safeFileName(
-          finalProductName
-        ) || 'product'}-` +
-        `${timestamp}.png`;
+        `${
+          safeFileName(
+            finalBusinessName
+          ) || 'business'
+        }-${
+          safeFileName(
+            finalProductName
+          ) || 'product'
+        }-${timestamp}.png`;
 
 
       const outputPath =
@@ -2453,22 +2038,29 @@ router.post(
         );
 
 
+      // ==================================================
+      // SAVE
+      // ==================================================
+
       await image
+
         .resize(
           width,
           height
         )
+
         .png({
           compressionLevel: 9,
           quality: 100,
         })
+
         .toFile(
           outputPath
         );
 
 
       // ==================================================
-      // URL
+      // PUBLIC URL
       // ==================================================
 
       const baseUrl =
@@ -2479,9 +2071,9 @@ router.post(
         `${baseUrl}/posters/${filename}`;
 
 
-      console.log(
-        '=========================================='
-      );
+      // ==================================================
+      // LOGGING
+      // ==================================================
 
       console.log(
         '✅ POSTER GENERATED SUCCESSFULLY'
@@ -2498,7 +2090,23 @@ router.post(
       );
 
       console.log(
-        '=========================================='
+        '🏢 Business:',
+        finalBusinessName
+      );
+
+      console.log(
+        '🎨 Theme:',
+        finalThemeColor
+      );
+
+      console.log(
+        '📐 Size:',
+        finalSize
+      );
+
+      console.log(
+        '🎨 Template:',
+        finalTemplate
       );
 
 
@@ -2526,10 +2134,15 @@ router.post(
 
         size:
           finalSize,
+
+        themeColor:
+          finalThemeColor,
+
       });
 
+    }
 
-    } catch (error) {
+    catch (error) {
 
       console.error(
         '❌ POSTER GENERATION ERROR:',
