@@ -110,12 +110,10 @@ function safeFileName(value) {
 function normalizeColor(value) {
   const color = cleanText(value);
 
-  // Full HEX
   if (/^#[0-9a-fA-F]{6}$/.test(color)) {
     return color;
   }
 
-  // Short HEX
   if (/^#[0-9a-fA-F]{3}$/.test(color)) {
     return (
       '#' +
@@ -125,7 +123,6 @@ function normalizeColor(value) {
     );
   }
 
-  // Allow common CSS colour names
   const namedColors = {
     green: '#2E7D32',
     darkgreen: '#1B5E20',
@@ -147,7 +144,6 @@ function normalizeColor(value) {
     return named;
   }
 
-  // Agriventure default green
   return '#2E7D32';
 }
 
@@ -199,7 +195,6 @@ function wrapText(text, width, fontSize) {
 
   for (const word of words) {
 
-    // Break very long words
     if (word.length > maxChars) {
 
       if (line) {
@@ -325,6 +320,7 @@ function labelValue(
     valueSize = 19,
     maxLines = 2,
     gap = 24,
+    lineHeight = Math.round(valueSize * 1.25),
   } = options;
 
   if (!cleanText(value)) {
@@ -342,7 +338,7 @@ function labelValue(
       font-size="${labelSize}px"
       font-weight="900"
       fill="${colors.label}"
-      letter-spacing="0.5px"
+      letter-spacing="0.7px"
     >
       ${escapeXml(label)}
     </text>
@@ -359,9 +355,8 @@ function labelValue(
     colors.value,
     {
       maxLines,
-      lineHeight: Math.round(
-        valueSize * 1.25
-      ),
+      lineHeight,
+      weight: label === 'DESCRIPTION' ? '500' : '600',
     }
   );
 
@@ -376,9 +371,8 @@ function labelValue(
 
   const h =
     gap +
-    lineCount *
-      Math.round(valueSize * 1.25) +
-    15;
+    lineCount * lineHeight +
+    18;
 
   return {
     svg,
@@ -406,10 +400,12 @@ function dataUriToBuffer(dataUri) {
   }
 
   try {
+
     return Buffer.from(
       match[2],
       'base64'
     );
+
   } catch (error) {
 
     console.log(
@@ -423,18 +419,124 @@ function dataUriToBuffer(dataUri) {
 
 
 // ======================================================
+// REMOVE WHITE PRODUCT BACKGROUND
+// ======================================================
+
+async function removeWhiteBackground(buffer) {
+
+  const image =
+    sharp(buffer)
+      .ensureAlpha();
+
+  const metadata =
+    await image.metadata();
+
+  if (
+    !metadata.width ||
+    !metadata.height
+  ) {
+    return buffer;
+  }
+
+  const { data, info } =
+    await image
+      .raw()
+      .toBuffer({
+        resolveWithObject: true,
+      });
+
+  for (
+    let i = 0;
+    i < data.length;
+    i += info.channels
+  ) {
+
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    const max =
+      Math.max(r, g, b);
+
+    const min =
+      Math.min(r, g, b);
+
+    const brightness =
+      (r + g + b) / 3;
+
+    const difference =
+      max - min;
+
+    // Very white / neutral background
+    const isWhiteBackground =
+      brightness >= 238 &&
+      difference <= 25;
+
+    if (isWhiteBackground) {
+
+      data[i + 3] = 0;
+
+    } else if (
+      brightness >= 220 &&
+      difference <= 30
+    ) {
+
+      // Soft transparency near edges
+      const alpha =
+        Math.round(
+          ((238 - brightness) / 18) * 255
+        );
+
+      data[i + 3] =
+        Math.max(
+          0,
+          Math.min(
+            255,
+            alpha
+          )
+        );
+    }
+  }
+
+  return sharp(
+    data,
+    {
+      raw: {
+        width: info.width,
+        height: info.height,
+        channels: 4,
+      },
+    }
+  )
+    .trim({
+      background: {
+        r: 255,
+        g: 255,
+        b: 255,
+        alpha: 0,
+      },
+      threshold: 8,
+    })
+    .png()
+    .toBuffer();
+}
+
+
+// ======================================================
 // POSTER LAYOUT
 // ======================================================
 
 function layoutFor(size, template) {
+
   const {
     width,
     height,
   } = SIZES[size];
 
-  const margin = Math.round(
-    Math.min(width, height) * 0.055
-  );
+  const margin =
+    Math.round(
+      Math.min(width, height) * 0.055
+    );
 
   const headerH =
     size === 'story'
@@ -454,40 +556,42 @@ function layoutFor(size, template) {
   const contentBottom =
     height - footerH;
 
-  const contentH = Math.max(
-    300,
-    contentBottom - contentY
-  );
+  const contentH =
+    Math.max(
+      300,
+      contentBottom - contentY
+    );
 
-  // Give the text side enough room for
-  // a proper description.
-  let leftRatio = 0.48;
+  // Give the text side more room.
+  let leftRatio = 0.50;
 
   if (template === 'productInfo') {
-    leftRatio = 0.42;
+    leftRatio = 0.46;
   }
 
   if (template === 'minimal') {
-    leftRatio = 0.47;
+    leftRatio = 0.49;
   }
 
   if (size === 'landscape') {
     leftRatio =
       template === 'productInfo'
-        ? 0.44
-        : 0.48;
+        ? 0.46
+        : 0.50;
   }
 
-  const gap = Math.round(
-    Math.min(width, height) * 0.018
-  );
+  const gap =
+    Math.round(
+      Math.min(width, height) * 0.018
+    );
 
   const innerW =
     width - margin * 2;
 
-  const leftW = Math.round(
-    (innerW - gap) * leftRatio
-  );
+  const leftW =
+    Math.round(
+      (innerW - gap) * leftRatio
+    );
 
   const rightW =
     innerW - gap - leftW;
@@ -928,7 +1032,9 @@ function drawHeader(
   businessName,
   location
 ) {
-  const x = layout.margin;
+
+  const x =
+    layout.margin;
 
   const dark =
     template === 'boldProduct' ||
@@ -953,11 +1059,13 @@ function drawHeader(
 
   let svg = '';
 
+
   // ====================================================
   // PRODUCT INFO
   // ====================================================
 
   if (template === 'productInfo') {
+
     svg += `
       <text
         x="${x}"
@@ -997,11 +1105,13 @@ function drawHeader(
     return svg;
   }
 
+
   // ====================================================
   // PEST CONTROL
   // ====================================================
 
   if (template === 'pestControl') {
+
     svg += `
       <text
         x="${x}"
@@ -1027,12 +1137,14 @@ function drawHeader(
         weight: '900',
         maxLines: 2,
         lineHeight: businessSize * 1.04,
-        family: 'Trebuchet MS, Arial, sans-serif',
+        family:
+          'Trebuchet MS, Arial, sans-serif',
         letterSpacing: 0.5,
       }
     );
 
     if (location) {
+
       svg += textBlock(
         location,
         x,
@@ -1050,6 +1162,7 @@ function drawHeader(
     return svg;
   }
 
+
   // ====================================================
   // BRAND ACCENT
   // ====================================================
@@ -1065,6 +1178,7 @@ function drawHeader(
     />
   `;
 
+
   // ====================================================
   // COMPANY NAME
   // ====================================================
@@ -1072,25 +1186,30 @@ function drawHeader(
   svg += textBlock(
     businessName,
     x,
-    layout.margin + businessSize - 2,
+    layout.margin +
+      businessSize -
+      2,
     width * 0.70,
     businessSize,
     color,
     {
       weight: '900',
       maxLines: 2,
-      lineHeight: businessSize * 1.03,
+      lineHeight:
+        businessSize * 1.03,
       family:
         'Trebuchet MS, Arial, Helvetica, sans-serif',
       letterSpacing: 0.2,
     }
   );
 
+
   // ====================================================
   // LOCATION
   // ====================================================
 
   if (location) {
+
     svg += textBlock(
       location,
       x,
@@ -1109,6 +1228,7 @@ function drawHeader(
 
   return svg;
 }
+
 
 // ======================================================
 // CONTENT
@@ -1165,33 +1285,36 @@ function drawContent(
 
 
   const panel =
-    dark
-      ? colors.panel
-      : colors.panel;
+    colors.panel;
 
 
-  const p = 24;
+  const p = 28;
 
 
   let svg = '';
 
 
+  // ====================================================
+  // FONT SIZES
+  // ====================================================
+
   const titleSize =
     height >= 1800
-      ? 48
+      ? 52
       : width >= 1800
-        ? 46
-        : 42;
+        ? 50
+        : 46;
 
 
   const detailSize =
     height >= 1800
-      ? 18
-      : 19;
+      ? 20
+      : 21;
 
 
   const detailWidth =
-    layout.leftW - p * 2;
+    layout.leftW -
+    p * 2;
 
 
   // ====================================================
@@ -1204,7 +1327,7 @@ function drawContent(
       y="${layout.contentY}"
       width="${layout.leftW}"
       height="${layout.contentH}"
-      rx="24"
+      rx="28"
       fill="${panel}"
       stroke="${border}"
       stroke-width="2"
@@ -1213,7 +1336,7 @@ function drawContent(
 
 
   // ====================================================
-  // RIGHT IMAGE PANEL
+  // RIGHT PRODUCT AREA
   // ====================================================
 
   svg += `
@@ -1222,10 +1345,19 @@ function drawContent(
       y="${layout.contentY}"
       width="${layout.rightW}"
       height="${layout.contentH}"
-      rx="24"
-      fill="${panel}"
+      rx="28"
+      fill="#FFFFFF"
       stroke="${border}"
       stroke-width="2"
+    />
+
+    <rect
+      x="${layout.rightX}"
+      y="${layout.contentY}"
+      width="10"
+      height="${layout.contentH}"
+      rx="5"
+      fill="${colors.accent}"
     />
   `;
 
@@ -1252,12 +1384,12 @@ function drawContent(
           x="${layout.leftX + p}"
           y="${
             layout.contentY +
-            58 +
+            62 +
             i *
               titleSize *
               1.08
           }"
-          font-family="Arial, Helvetica, sans-serif"
+          font-family="Trebuchet MS, Arial, Helvetica, sans-serif"
           font-size="${titleSize}px"
           font-weight="900"
           fill="${titleColor}"
@@ -1271,234 +1403,322 @@ function drawContent(
 
   let y =
     layout.contentY +
-    58 +
+    62 +
     titleLines.length *
       titleSize *
       1.08 +
-    26;
+    28;
 
 
   // ====================================================
-  // PRODUCT DETAILS
+  // DESCRIPTION
   // ====================================================
 
-  const details = [
+  if (cleanText(description)) {
 
-  // DESCRIPTION gets priority
-  [
-    'DESCRIPTION',
-    description,
-    4,
-  ],
-
-  [
-    'ACTIVE INGREDIENT',
-    activeIngredient,
-    2,
-  ],
-
-  [
-    'TARGETS',
-    targetPests,
-    2,
-  ],
-
-  [
-    'CROPS',
-    crops,
-    2,
-  ],
-
-  [
-    'USAGE',
-    usage,
-    3,
-  ],
-];
-
-  for (const [
-    label,
-    value,
-    maxLines,
-  ] of details) {
-
-    if (!cleanText(value)) {
-      continue;
-    }
-
-
-    if (
-      y >
-      layout.contentY +
-      layout.contentH -
-      65
-    ) {
-      break;
-    }
-
-
-    const result =
+    const descriptionResult =
       labelValue(
-        label,
-        value,
+        'DESCRIPTION',
+        description,
         layout.leftX + p,
         y,
         detailWidth,
         {
           label: titleColor,
-
-          value:
-            muted === colors.muted
-              ? '#414741'
-              : muted,
+          value: textColor,
         },
         {
-         labelSize:
-          label === 'DESCRIPTION'
-            ? 15
-            : 13,
-
-        valueSize:
-          label === 'DESCRIPTION'
-            ? detailSize + 2
-            : detailSize,
-
-        maxLines,
-        lineHeight:
-          label === 'DESCRIPTION'
-            ? Math.round((detailSize + 2) * 1.38)
-            : Math.round(detailSize * 1.28),
+          labelSize: 17,
+          valueSize:
+            detailSize + 8,
+          maxLines: 6,
+          gap: 27,
+          lineHeight:
+            Math.round(
+              (detailSize + 8) * 1.35
+            ),
         }
       );
 
+    svg += descriptionResult.svg;
 
-    svg += result.svg;
-
-    y += result.height;
+    y += descriptionResult.height + 8;
   }
 
 
-    // ====================================================
-  // PRODUCT IMAGE CARD
+  // ====================================================
+  // INFORMATION GRID
   // ====================================================
 
-  const imagePad = 10;
+  const infoGap = 18;
 
-  const productCardX =
-    layout.rightX + imagePad;
+  const infoW =
+    Math.floor(
+      (detailWidth - infoGap) / 2
+    );
 
-  const productCardY =
-    layout.contentY + imagePad;
 
-  const productCardW =
-    layout.rightW - imagePad * 2;
+  // ACTIVE INGREDIENT
+  if (cleanText(activeIngredient)) {
 
-  const productCardH =
-    layout.contentH - imagePad * 2;
+    const result =
+      labelValue(
+        'ACTIVE INGREDIENT',
+        activeIngredient,
+        layout.leftX + p,
+        y,
+        infoW,
+        {
+          label: titleColor,
+          value: textColor,
+        },
+        {
+          labelSize: 13,
+          valueSize: detailSize,
+          maxLines: 2,
+          gap: 21,
+          lineHeight:
+            Math.round(
+              detailSize * 1.28
+            ),
+        }
+      );
 
-  // Large product card
-  svg += `
-    <rect
-      x="${productCardX}"
-      y="${productCardY}"
-      width="${productCardW}"
-      height="${productCardH}"
-      rx="24"
-      fill="#FFFFFF"
-      stroke="${colors.accent}"
-      stroke-opacity="0.12"
-      stroke-width="2"
-    />
-  `;
+    svg += result.svg;
+  }
 
-  // Small accent line at the top of the product card
-  svg += `
-    <rect
-      x="${productCardX + 24}"
-      y="${productCardY + 18}"
-      width="${Math.min(90, productCardW * 0.25)}"
-      height="6"
-      rx="3"
-      fill="${colors.accent}"
-    />
-  `;
 
-  // No "PRODUCT" text here.
-  // The actual uploaded product image will fill this card.
+  // TARGETS
+  if (cleanText(targetPests)) {
+
+    const targetX =
+      layout.leftX +
+      p +
+      infoW +
+      infoGap;
+
+    const result =
+      labelValue(
+        'TARGETS',
+        targetPests,
+        targetX,
+        y,
+        infoW,
+        {
+          label: titleColor,
+          value: textColor,
+        },
+        {
+          labelSize: 13,
+          valueSize: detailSize,
+          maxLines: 2,
+          gap: 21,
+          lineHeight:
+            Math.round(
+              detailSize * 1.28
+            ),
+        }
+      );
+
+    svg += result.svg;
+  }
+
+
+  // Advance after information row
+  y +=
+    Math.round(
+      detailSize * 1.28 * 2
+    ) +
+    32;
 
 
   // ====================================================
-  // PROMOTION
+  // CROPS
   // ====================================================
 
-  if (promoText) {
+  if (cleanText(crops)) {
 
-    const promoH =
+    const result =
+      labelValue(
+        'CROPS',
+        crops,
+        layout.leftX + p,
+        y,
+        detailWidth,
+        {
+          label: titleColor,
+          value: textColor,
+        },
+        {
+          labelSize: 13,
+          valueSize: detailSize,
+          maxLines: 2,
+          gap: 21,
+          lineHeight:
+            Math.round(
+              detailSize * 1.28
+            ),
+        }
+      );
+
+    svg += result.svg;
+
+    y += result.height + 14;
+  }
+
+
+  // ====================================================
+  // USAGE / MIXING BOX
+  // ====================================================
+
+  if (cleanText(usage)) {
+
+    const usageBoxY = y;
+
+    const usageBoxH =
       Math.min(
-        105,
+        190,
         Math.max(
-          72,
-          layout.contentH * 0.14
+          135,
+          layout.contentY +
+          layout.contentH -
+          usageBoxY -
+          35
         )
       );
 
-    const promoY =
-      layout.contentY +
-      layout.contentH -
-      promoH -
-      22;
-
     svg += `
       <rect
-        x="${layout.leftX}"
-        y="${promoY}"
-        width="${layout.leftW}"
-        height="${promoH}"
-        rx="18"
-        fill="${theme}"
+        x="${layout.leftX + p - 8}"
+        y="${usageBoxY - 12}"
+        width="${detailWidth + 16}"
+        height="${usageBoxH}"
+        rx="20"
+        fill="${colors.accentSoft}"
+        stroke="${colors.accent}"
+        stroke-opacity="0.20"
+        stroke-width="2"
       />
+
+      <text
+        x="${layout.leftX + p + 10}"
+        y="${usageBoxY + 20}"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="14px"
+        font-weight="900"
+        fill="${titleColor}"
+        letter-spacing="1px"
+      >
+        USAGE / MIXING
+      </text>
     `;
 
+
     svg += textBlock(
-      promoText,
-      layout.leftX + 18,
-      promoY + promoH * 0.62,
-      layout.leftW - 36,
-      22,
-      '#FFFFFF',
+      usage,
+      layout.leftX + p + 10,
+      usageBoxY + 54,
+      detailWidth - 20,
+      20,
+      textColor,
       {
-        weight: '900',
-        maxLines: 2,
+        weight: '600',
+        maxLines: 5,
         lineHeight: 27,
-        anchor: 'start',
       }
     );
   }
 
+
+  // ====================================================
+  // PROMOTION BADGE
+  // ====================================================
+
+  if (promoText) {
+
+    const promoW =
+      Math.min(
+        300,
+        layout.leftW * 0.55
+      );
+
+    const promoH = 82;
+
+    const promoX =
+      layout.leftX +
+      layout.leftW -
+      promoW -
+      22;
+
+    const promoY =
+      layout.contentY +
+      20;
+
+
+    svg += `
+      <rect
+        x="${promoX}"
+        y="${promoY}"
+        width="${promoW}"
+        height="${promoH}"
+        rx="41"
+        fill="${theme}"
+        filter="url(#shadow)"
+      />
+
+      <circle
+        cx="${promoX + 39}"
+        cy="${promoY + 41}"
+        r="23"
+        fill="#FFFFFF"
+        opacity="0.18"
+      />
+    `;
+
+
+    svg += textBlock(
+      promoText,
+      promoX + 72,
+      promoY + 48,
+      promoW - 90,
+      20,
+      '#FFFFFF',
+      {
+        weight: '900',
+        maxLines: 2,
+        lineHeight: 23,
+      }
+    );
+  }
+
+
   return svg;
 }
+
 
 // ======================================================
 // TEST ROUTE
 // ======================================================
 
-router.get('/test', (req, res) => {
+router.get(
+  '/test',
+  (req, res) => {
 
-  res.status(200).json({
+    res.status(200).json({
 
-    success: true,
+      success: true,
 
-    message:
-      'Poster API is connected correctly.',
+      message:
+        'Poster API is connected correctly.',
 
-    route:
-      '/api/poster/test',
+      route:
+        '/api/poster/test',
 
-    method:
-      'GET',
-
-  });
-});
+      method:
+        'GET',
+    });
+  }
+);
 
 
 // ======================================================
@@ -1541,28 +1761,22 @@ router.post(
       const finalBusinessName =
         cleanText(businessName);
 
-
       const finalProductName =
         cleanText(productName);
-
 
       const finalThemeColor =
         normalizeColor(themeColor);
 
-
       const requestedTemplate =
         cleanText(template);
-
 
       const finalTemplate =
         TEMPLATES.has(requestedTemplate)
           ? requestedTemplate
           : 'modernFarm';
 
-
       const requestedSize =
         cleanText(size);
-
 
       const finalSize =
         SIZES[requestedSize]
@@ -1582,7 +1796,6 @@ router.post(
 
           message:
             'Business name is required.',
-
         });
       }
 
@@ -1595,7 +1808,6 @@ router.post(
 
           message:
             'Product name is required.',
-
         });
       }
 
@@ -1620,7 +1832,6 @@ router.post(
           finalThemeColor
         );
 
-
       const layout =
         layoutFor(
           finalSize,
@@ -1632,11 +1843,14 @@ router.post(
       // SVG START
       // ==================================================
 
-     let svg = `<svg
-      width="${width}"
-      height="${height}"
-      viewBox="0 0 ${width} ${height}"
-      xmlns="http://www.w3.org/2000/svg">`;
+      let svg = `
+        <svg
+          width="${width}"
+          height="${height}"
+          viewBox="0 0 ${width} ${height}"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+      `;
 
 
       // ==================================================
@@ -1819,7 +2033,7 @@ router.post(
 
 
       // ==================================================
-      // CREATE IMAGE
+      // CREATE BASE IMAGE
       // ==================================================
 
       let image =
@@ -1848,9 +2062,7 @@ router.post(
 
           const logoProcessed =
             await sharp(logoBuffer)
-
               .ensureAlpha()
-
               .resize(
                 logoBox,
                 logoBox,
@@ -1865,9 +2077,7 @@ router.post(
                   },
                 }
               )
-
               .png()
-
               .toBuffer();
 
 
@@ -1885,9 +2095,8 @@ router.post(
                   logoBox,
               },
             ]);
-        }
 
-        catch (error) {
+        } catch (error) {
 
           console.log(
             '⚠️ Logo processing failed:',
@@ -1899,7 +2108,7 @@ router.post(
 
       // ==================================================
       // PRODUCT IMAGE
-      // ==================================================
+      // ======================================================
 
       const productBuffer =
         dataUriToBuffer(
@@ -1911,51 +2120,113 @@ router.post(
 
         try {
 
-          const cardW =
-            Math.max(
-              160,
-              layout.rightW - 56
+          // ------------------------------------------------
+          // RIGHT SIDE IMAGE AREA
+          // ------------------------------------------------
+
+          const imageAreaX =
+            layout.rightX + 18;
+
+          const imageAreaY =
+            layout.contentY + 18;
+
+          const imageAreaW =
+            layout.rightW - 36;
+
+          const imageAreaH =
+            layout.contentH - 36;
+
+
+          // ------------------------------------------------
+          // REMOVE WHITE BACKGROUND
+          // ------------------------------------------------
+
+          const transparentProduct =
+            await removeWhiteBackground(
+              productBuffer
             );
 
 
-          const cardH =
-            Math.max(
-              180,
-              Math.round(
-                layout.contentH * 0.62
-              ) - 12
+          // ------------------------------------------------
+          // TRIM TRANSPARENT EDGES
+          // ------------------------------------------------
+
+          let trimmedProduct =
+            transparentProduct;
+
+          try {
+
+            trimmedProduct =
+              await sharp(
+                transparentProduct
+              )
+                .trim({
+                  background: {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    alpha: 0,
+                  },
+                  threshold: 5,
+                })
+                .png()
+                .toBuffer();
+
+          } catch (trimError) {
+
+            console.log(
+              '⚠️ Product trim skipped:',
+              trimError.message
+            );
+          }
+
+
+          // ------------------------------------------------
+          // PRODUCT SIZE
+          // ------------------------------------------------
+
+          const productW =
+            Math.round(
+              imageAreaW * 0.94
             );
 
+          const productH =
+            Math.round(
+              imageAreaH * 0.94
+            );
+
+
+          // ------------------------------------------------
+          // RESIZE PRODUCT
+          // ------------------------------------------------
 
           const processed =
-            await sharp(productBuffer)
-
-              .ensureAlpha()
-
-              .trim({
-                threshold: 22,
-              })
-
-              .flatten({
-                background: '#FFFFFF',
-              })
-
+            await sharp(
+              trimmedProduct
+            )
               .resize(
-                cardW,
-                cardH,
+                productW,
+                productH,
                 {
                   fit: 'contain',
 
                   position: 'centre',
 
-                  background: '#FFFFFF',
+                  background: {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    alpha: 0,
+                  },
                 }
               )
-
               .png()
-
               .toBuffer();
 
+
+          // ------------------------------------------------
+          // PRODUCT METADATA
+          // ------------------------------------------------
 
           const metadata =
             await sharp(
@@ -1965,29 +2236,36 @@ router.post(
 
           const actualWidth =
             metadata.width ||
-            cardW;
-
+            productW;
 
           const actualHeight =
             metadata.height ||
-            cardH;
+            productH;
 
+
+          // ------------------------------------------------
+          // CENTER PRODUCT
+          // ------------------------------------------------
 
           const left =
             Math.round(
-              layout.rightX +
-              28 +
-              (cardW - actualWidth) / 2
+              imageAreaX +
+              (imageAreaW -
+                actualWidth) / 2
             );
 
 
           const top =
             Math.round(
-              layout.contentY +
-              28 +
-              (cardH - actualHeight) / 2
+              imageAreaY +
+              (imageAreaH -
+                actualHeight) / 2
             );
 
+
+          // ------------------------------------------------
+          // COMPOSITE PRODUCT
+          // ------------------------------------------------
 
           image =
             image.composite([
@@ -1999,9 +2277,13 @@ router.post(
                 left,
               },
             ]);
-        }
 
-        catch (error) {
+
+          console.log(
+            '✅ Product image processed successfully'
+          );
+
+        } catch (error) {
 
           console.log(
             '⚠️ Product image processing failed:',
@@ -2043,17 +2325,14 @@ router.post(
       // ==================================================
 
       await image
-
         .resize(
           width,
           height
         )
-
         .png({
           compressionLevel: 9,
           quality: 100,
         })
-
         .toFile(
           outputPath
         );
@@ -2065,7 +2344,6 @@ router.post(
 
       const baseUrl =
         `${req.protocol}://${req.get('host')}`;
-
 
       const posterUrl =
         `${baseUrl}/posters/${filename}`;
@@ -2137,12 +2415,10 @@ router.post(
 
         themeColor:
           finalThemeColor,
-
       });
 
-    }
 
-    catch (error) {
+    } catch (error) {
 
       console.error(
         '❌ POSTER GENERATION ERROR:',
