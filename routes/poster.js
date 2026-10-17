@@ -941,7 +941,7 @@ function backgroundSvg(
         x="0"
         y="0"
         width="${width}"
-        height="${Math.round(height * 0.13)}"
+height="${Math.round(height * 0.13)}"
         fill="${theme}"
       />
     `;
@@ -1028,19 +1028,28 @@ function drawHeader(width, height, layout, template, colors, businessName, locat
 // CONTENT
 // ======================================================
 
-function shortDescription(value, limit = 145) {
+function shortDescription(value, limit = 170) {
   const text = cleanText(value).replace(/\s+/g, ' ');
   if (text.length <= limit) return text;
-  const firstSentence = text.match(/^.{20,145}?[.!?](?=\s|$)/);
-  if (firstSentence) return firstSentence[0];
-  const cut = text.slice(0, limit + 1);
-  return cut.slice(0, Math.max(30, cut.lastIndexOf(' '))).trimEnd() + '…';
+  // Only use complete sentences; never append a trailing ellipsis.
+  const sentences = text.match(/[^.!?]+[.!?]+(?=\s|$)/g) || [];
+  let result = '';
+  for (const sentence of sentences) {
+    if ((result + sentence).trim().length > limit) break;
+    result += sentence;
+  }
+  if (result.trim()) return result.trim();
+  // If the input has no short sentence, finish at a word boundary.
+  const words = text.slice(0, limit + 1);
+  const prefix = words.slice(0, words.lastIndexOf(' ')).replace(/[,;:\s]+$/, '');
+  return prefix ? prefix + '.' : text;
 }
 
 function parseAdvantages(value) {
   const raw = Array.isArray(value) ? value : cleanText(value).split(/\n|;|\s*\|\s*/);
   return raw.map(item => cleanText(item).replace(/^[•✓✔\-–\d.)\s]+/, '').trim()).filter(Boolean).slice(0, 5);
 }
+
 function drawContent(width, height, layout, template, colors, fields, theme) {
   const {productName, description, activeIngredient, targetPests, crops, usage, promoText, price, advantages} = fields;
   const dark = template === 'premiumAgri';
@@ -1472,22 +1481,24 @@ router.post(
       // LOGO
       // ==================================================
 
-      const logoBuffer =
-        dataUriToBuffer(logo);
+      // An uploaded logo takes precedence. Otherwise use the bundled
+      // Agriventure Enterprises logo from backend/assets/agriventure-logo.png.
+      const defaultLogoPath = path.join(__dirname, '..', 'assets', 'agriventure-logo.png');
+      const logoBuffer = dataUriToBuffer(logo) ||
+        (fs.existsSync(defaultLogoPath) ? fs.readFileSync(defaultLogoPath) : null);
+      if (!logoBuffer) console.warn('Poster logo missing: supply Base64 logo or add', defaultLogoPath);
 
 
       if (logoBuffer) {
 
         try {
 
-          const logoBox =
-            finalSize === 'story'
-              ? 155
-              : 125;
+          const logoBox = finalSize === 'story' ? 170 : 145;
 
 
           const logoProcessed =
             await sharp(logoBuffer)
+              .trim({ background: '#FFFFFF', threshold: 12 })
               .ensureAlpha()
               .resize(
                 logoBox,
