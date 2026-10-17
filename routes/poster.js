@@ -1,4 +1,3 @@
-
 const express = require('express');
 const sharp = require('sharp');
 const fs = require('fs');
@@ -172,70 +171,45 @@ function rgba(hex, alpha) {
 
 function wrapText(text, width, fontSize) {
   const value = cleanText(text);
-
-  if (!value) {
-    return [];
-  }
-
-  const averageCharWidth = Math.max(
-    fontSize * 0.53,
-    7
-  );
-
-  const maxChars = Math.max(
-    8,
-    Math.floor(width / averageCharWidth)
-  );
-
-  const words = value.split(/\s+/);
-
+  if (!value) return [];
+  const maxWidth = Math.max(10, width);
+  const glyphWidth = c => {
+    if ('MW@%#'.includes(c)) return fontSize * 0.88;
+    if ('ilI.,:;!| '.includes(c)) return fontSize * 0.30;
+    if (/[A-Z]/.test(c)) return fontSize * 0.67;
+    return fontSize * 0.55;
+  };
+  const measure = str => [...str].reduce((sum, c) => sum + glyphWidth(c), 0);
   const lines = [];
-
-  let line = '';
-
-  for (const word of words) {
-
-    if (word.length > maxChars) {
-
-      if (line) {
-        lines.push(line);
-        line = '';
+  for (const paragraph of value.split(/\n/)) {
+    let line = '';
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      const candidate = line ? line + ' ' + word : word;
+      if (measure(candidate) <= maxWidth) { line = candidate; continue; }
+      if (line) { lines.push(line); line = ''; }
+      let part = '';
+      for (const char of word) {
+        if (part && measure(part + char) > maxWidth) { lines.push(part); part = ''; }
+        part += char;
       }
-
-      for (
-        let i = 0;
-        i < word.length;
-        i += maxChars
-      ) {
-        lines.push(
-          word.slice(i, i + maxChars)
-        );
-      }
-
-      continue;
+      line = part;
     }
-
-    const candidate = line
-      ? `${line} ${word}`
-      : word;
-
-    if (candidate.length <= maxChars) {
-      line = candidate;
-    } else {
-
-      if (line) {
-        lines.push(line);
-      }
-
-      line = word;
-    }
+    if (line) lines.push(line);
   }
-
-  if (line) {
-    lines.push(line);
-  }
-
   return lines;
+}
+
+function fittedText(value, width, maxLines, preferred, minimum = 12) {
+  for (let size = preferred; size >= minimum; size -= 1) {
+    const lines = wrapText(value, width, size);
+    if (lines.length <= maxLines) return { size, lines, truncated: false };
+  }
+  return { size: minimum, lines: truncateLines(wrapText(value, width, minimum), maxLines), truncated: true };
+}
+
+function renderLines(lines, x, baseline, fontSize, color, opts = {}) {
+  const { weight = 600, lineHeight = fontSize * 1.22, anchor = 'start', family = 'Arial, Helvetica, sans-serif' } = opts;
+  return lines.map((line, i) => `<text x="${x}" y="${baseline + i * lineHeight}" font-family="${family}" font-size="${fontSize}" font-weight="${weight}" fill="${color}" text-anchor="${anchor}">${escapeXml(line)}</text>`).join('');
 }
 
 
@@ -1023,209 +997,29 @@ function backgroundSvg(
 // HEADER
 // ======================================================
 
-function drawHeader(
-  width,
-  height,
-  layout,
-  template,
-  colors,
-  businessName,
-  location
-) {
-
-  const x =
-    layout.margin;
-
-  const dark =
-    template === 'boldProduct' ||
-    template === 'premiumAgri';
-
-  const businessSize =
-    height >= 1800
-      ? 64
-      : width >= 1800
-        ? 60
-        : 56;
-
-  const color =
-    dark
-      ? '#FFFFFF'
-      : colors.text;
-
-  const muted =
-    dark
-      ? '#DCEBDD'
-      : colors.muted;
-
-  let svg = '';
-
-
-  // ====================================================
-  // PRODUCT INFO
-  // ====================================================
-
-  if (template === 'productInfo') {
-
-    svg += `
-      <text
-        x="${x}"
-        y="${layout.headerH * 0.56}"
-        font-family="Trebuchet MS, Arial, sans-serif"
-        font-size="34px"
-        font-weight="900"
-        fill="#FFFFFF"
-        letter-spacing="1.5px"
-      >
-        AGRIVENTURE
-      </text>
-
-      <rect
-        x="${x}"
-        y="${layout.headerH * 0.68}"
-        width="110"
-        height="5"
-        rx="2.5"
-        fill="#FFFFFF"
-        opacity="0.8"
-      />
-
-      <text
-        x="${x}"
-        y="${layout.headerH * 0.84}"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="17px"
-        font-weight="700"
-        fill="#E8F5E9"
-        letter-spacing="1px"
-      >
-        PRODUCT INFO
-      </text>
-    `;
-
-    return svg;
+function drawHeader(width, height, layout, template, colors, businessName, location) {
+  const x = layout.margin;
+  const dark = template === 'boldProduct' || template === 'premiumAgri';
+  const textColor = dark || template === 'pestControl' ? '#FFFFFF' : colors.text;
+  const muted = dark || template === 'pestControl' ? '#F1F5F1' : colors.muted;
+  const reservedLogo = Math.min(165, width * 0.18);
+  const nameWidth = width - 2 * x - reservedLogo - 14;
+  const nameTop = template === 'pestControl' ? 91 : layout.margin + 42;
+  const nameMaxHeight = layout.headerH - nameTop - 64;
+  let name = fittedText(businessName, nameWidth, 3, width > 1500 ? 55 : 52, 22);
+  while (name.size > 20 && name.lines.length * name.size * 1.08 > nameMaxHeight) {
+    name = fittedText(businessName, nameWidth, 3, name.size - 1, 20);
   }
-
-
-  // ====================================================
-  // PEST CONTROL
-  // ====================================================
-
-  if (template === 'pestControl') {
-
-    svg += `
-      <text
-        x="${x}"
-        y="52"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="17px"
-        font-weight="900"
-        fill="#FFFFFF"
-        letter-spacing="2.5px"
-      >
-        PEST CONTROL
-      </text>
-    `;
-
-    svg += textBlock(
-      businessName,
-      x,
-      120,
-      width * 0.72,
-      businessSize,
-      '#FFFFFF',
-      {
-        weight: '900',
-        maxLines: 2,
-        lineHeight: businessSize * 1.04,
-        family:
-          'Trebuchet MS, Arial, sans-serif',
-        letterSpacing: 0.5,
-      }
-    );
-
-    if (location) {
-
-      svg += textBlock(
-        location,
-        x,
-        225,
-        width * 0.65,
-        21,
-        '#F3FFF4',
-        {
-          weight: '600',
-          maxLines: 1,
-        }
-      );
-    }
-
-    return svg;
+  const lineHeight = name.size * 1.08;
+  const locationY = nameTop + (name.lines.length - 1) * lineHeight + name.size * 0.8 + 23;
+  let svg = `<rect x="${x}" y="${layout.margin - 16}" width="74" height="6" rx="3" fill="${dark || template === 'pestControl' ? '#FFFFFF' : colors.accent}"/>`;
+  svg += renderLines(name.lines, x, nameTop, name.size, textColor, {weight: 900, lineHeight, family:'Trebuchet MS, Arial, sans-serif'});
+  if (location && locationY < layout.contentY - 13) {
+    const availableHeight = layout.contentY - 12 - locationY;
+    const maxLines = availableHeight >= 45 ? 2 : 1;
+    const address = fittedText(location, nameWidth, maxLines, 20, 12);
+    svg += renderLines(address.lines, x, locationY, address.size, muted, {weight:600, lineHeight:address.size * 1.16});
   }
-
-
-  // ====================================================
-  // BRAND ACCENT
-  // ====================================================
-
-  svg += `
-    <rect
-      x="${x}"
-      y="${layout.margin - 16}"
-      width="74"
-      height="6"
-      rx="3"
-      fill="${dark ? '#FFFFFF' : colors.accent}"
-    />
-  `;
-
-
-  // ====================================================
-  // COMPANY NAME
-  // ====================================================
-
-  svg += textBlock(
-    businessName,
-    x,
-    layout.margin +
-      businessSize -
-      2,
-    width * 0.70,
-    businessSize,
-    color,
-    {
-      weight: '900',
-      maxLines: 2,
-      lineHeight:
-        businessSize * 1.03,
-      family:
-        'Trebuchet MS, Arial, Helvetica, sans-serif',
-      letterSpacing: 0.2,
-    }
-  );
-
-
-  // ====================================================
-  // LOCATION
-  // ====================================================
-
-  if (location) {
-
-    svg += textBlock(
-      location,
-      x,
-      layout.margin +
-        businessSize * 2.15,
-      width * 0.62,
-      20,
-      muted,
-      {
-        weight: '600',
-        maxLines: 1,
-        letterSpacing: 0.2,
-      }
-    );
-  }
-
   return svg;
 }
 
@@ -1234,464 +1028,92 @@ function drawHeader(
 // CONTENT
 // ======================================================
 
-function drawContent(
-  width,
-  height,
-  layout,
-  template,
-  colors,
-  fields,
-  theme
-) {
+function shortDescription(value, limit = 145) {
+  const text = cleanText(value).replace(/\s+/g, ' ');
+  if (text.length <= limit) return text;
+  const firstSentence = text.match(/^.{20,145}?[.!?](?=\s|$)/);
+  if (firstSentence) return firstSentence[0];
+  const cut = text.slice(0, limit + 1);
+  return cut.slice(0, Math.max(30, cut.lastIndexOf(' '))).trimEnd() + '…';
+}
 
-  const {
-    productName,
-    description,
-    activeIngredient,
-    targetPests,
-    crops,
-    usage,
-    promoText,
-  } = fields;
-
-
-  const dark =
-    template === 'boldProduct' ||
-    template === 'premiumAgri';
-
-
-  const titleColor =
-    dark
-      ? '#FFFFFF'
-      : colors.accent;
-
-
-  const textColor =
-    dark
-      ? '#F2F8F2'
-      : colors.text;
-
-
-  const muted =
-    dark
-      ? '#DCEBDD'
-      : colors.muted;
-
-
-  const border =
-    dark
-      ? 'rgba(255,255,255,0.18)'
-      : colors.border;
-
-
-  const panel =
-    colors.panel;
-
-
-  const p = 28;
-
-
-  let svg = '';
-
-
-  // ====================================================
-  // FONT SIZES
-  // ====================================================
-
-  const titleSize =
-    height >= 1800
-      ? 52
-      : width >= 1800
-        ? 50
-        : 46;
-
-
-  const detailSize =
-    height >= 1800
-      ? 20
-      : 21;
-
-
-  const detailWidth =
-    layout.leftW -
-    p * 2;
-
-
-  // ====================================================
-  // LEFT CONTENT PANEL
-  // ====================================================
-
-  svg += `
-    <rect
-      x="${layout.leftX}"
-      y="${layout.contentY}"
-      width="${layout.leftW}"
-      height="${layout.contentH}"
-      rx="28"
-      fill="${panel}"
-      stroke="${border}"
-      stroke-width="2"
-    />
-  `;
-
-
-  // ====================================================
-  // RIGHT PRODUCT AREA
-  // ====================================================
-
-  svg += `
-    <rect
-      x="${layout.rightX}"
-      y="${layout.contentY}"
-      width="${layout.rightW}"
-      height="${layout.contentH}"
-      rx="28"
-      fill="#FFFFFF"
-      stroke="${border}"
-      stroke-width="2"
-    />
-
-    <rect
-      x="${layout.rightX}"
-      y="${layout.contentY}"
-      width="10"
-      height="${layout.contentH}"
-      rx="5"
-      fill="${colors.accent}"
-    />
-  `;
-
-
-  // ====================================================
-  // PRODUCT TITLE
-  // ====================================================
-
-  const titleLines =
-    truncateLines(
-      wrapText(
-        productName,
-        detailWidth,
-        titleSize
-      ),
-      3
-    );
-
-
-  svg += titleLines
-    .map(
-      (line, i) => `
-        <text
-          x="${layout.leftX + p}"
-          y="${
-            layout.contentY +
-            62 +
-            i *
-              titleSize *
-              1.08
-          }"
-          font-family="Trebuchet MS, Arial, Helvetica, sans-serif"
-          font-size="${titleSize}px"
-          font-weight="900"
-          fill="${titleColor}"
-        >
-          ${escapeXml(line)}
-        </text>
-      `
-    )
-    .join('');
-
-
-  let y =
-    layout.contentY +
-    62 +
-    titleLines.length *
-      titleSize *
-      1.08 +
-    28;
-
-
-  // ====================================================
-  // DESCRIPTION
-  // ====================================================
-
-  if (cleanText(description)) {
-
-    const descriptionResult =
-      labelValue(
-        'DESCRIPTION',
-        description,
-        layout.leftX + p,
-        y,
-        detailWidth,
-        {
-          label: titleColor,
-          value: textColor,
-        },
-        {
-          labelSize: 17,
-          valueSize:
-            detailSize + 8,
-          maxLines: 6,
-          gap: 27,
-          lineHeight:
-            Math.round(
-              (detailSize + 8) * 1.35
-            ),
-        }
-      );
-
-    svg += descriptionResult.svg;
-
-    y += descriptionResult.height + 8;
+function parseAdvantages(value) {
+  const raw = Array.isArray(value) ? value : cleanText(value).split(/\n|;|\s*\|\s*/);
+  return raw.map(item => cleanText(item).replace(/^[•✓✔\-–\d.)\s]+/, '').trim()).filter(Boolean).slice(0, 5);
+}
+function drawContent(width, height, layout, template, colors, fields, theme) {
+  const {productName, description, activeIngredient, targetPests, crops, usage, promoText, price, advantages} = fields;
+  const dark = template === 'premiumAgri';
+  const titleColor = template === 'boldProduct' ? theme : (dark ? '#FFFFFF' : colors.accent);
+  const textColor = dark ? '#FFFFFF' : colors.text;
+  const labelColor = dark ? '#DCEBDD' : titleColor;
+  const border = dark ? 'rgba(255,255,255,0.2)' : colors.border;
+  const p = width >= 1800 ? 34 : 25;
+  const x = layout.leftX + p, w = layout.leftW - 2*p;
+  const top = layout.contentY, bottom = top + layout.contentH - 17;
+  const benefits = parseAdvantages(advantages);
+  const sections = [];
+  if (description) sections.push({label:'DESCRIPTION',value:shortDescription(description),type:'description'});
+  if (benefits.length) sections.push({label:'ADVANTAGES',value:benefits,type:'advantages'});
+  if (activeIngredient) sections.push({label:'ACTIVE INGREDIENT',value:activeIngredient,type:'detail'});
+  if (targetPests) sections.push({label:'TARGETS',value:targetPests,type:'detail'});
+  if (crops) sections.push({label:'CROPS / ANIMALS',value:crops,type:'detail'});
+  if (usage) sections.push({label:'USAGE / MIXING',value:usage,type:'usage'});
+  let chosen = null;
+  for (let scale=1; scale>=0.50; scale-=0.025) {
+    const titleFont=Math.round((height>=1800?47:41)*scale);
+    const title=fittedText(productName,w,3,titleFont,Math.max(16,titleFont-2));
+    const font=Math.max(11,Math.round((height>=1800?21:19)*scale));
+    const labelFont=Math.max(10,Math.round(13*scale));
+    const rows=sections.map(section=>{
+      const lineHeight=font*1.2;
+      const lines=section.type==='advantages'
+        ? section.value.map(v=>wrapText(v,w-24,font)).flatMap((ls,i)=>ls.map((line,j)=>({text:line,bullet:j===0})))
+        : wrapText(section.value,w-(section.type==='usage'?20:0),font).map(text=>({text,bullet:false}));
+      return {...section,font,labelFont,lines,lineHeight,height:labelFont*1.3+7+lines.length*lineHeight+(section.type==='usage'?19:0)};
+    });
+    const total=25+title.lines.length*title.size*1.12+17+rows.reduce((n,r)=>n+r.height+9,0)+10;
+    if(total<=layout.contentH-15){chosen={title,rows};break;}
   }
-
-
-  // ====================================================
-  // INFORMATION GRID
-  // ====================================================
-
-  const infoGap = 18;
-
-  const infoW =
-    Math.floor(
-      (detailWidth - infoGap) / 2
-    );
-
-
-  // ACTIVE INGREDIENT
-  if (cleanText(activeIngredient)) {
-
-    const result =
-      labelValue(
-        'ACTIVE INGREDIENT',
-        activeIngredient,
-        layout.leftX + p,
-        y,
-        infoW,
-        {
-          label: titleColor,
-          value: textColor,
-        },
-        {
-          labelSize: 13,
-          valueSize: detailSize,
-          maxLines: 2,
-          gap: 21,
-          lineHeight:
-            Math.round(
-              detailSize * 1.28
-            ),
-        }
-      );
-
-    svg += result.svg;
+  if(!chosen){
+    const title=fittedText(productName,w,2,21,16),font=11,labelFont=10,lineHeight=13;
+    const available=layout.contentH-25-title.lines.length*title.size*1.12-35;
+    const each=Math.max(25,(available-sections.length*9)/Math.max(1,sections.length));
+    const rows=sections.map(section=>{
+      const raw=section.type==='advantages'
+        ? section.value.flatMap(v=>wrapText(v,w-24,font).map((text,i)=>({text,bullet:i===0})))
+        : wrapText(section.value,w-20,font).map(text=>({text,bullet:false}));
+      const count=Math.max(1,Math.floor((each-22-(section.type==='usage'?12:0))/lineHeight));
+      const lines=raw.slice(0,count);
+      return {...section,font,labelFont,lineHeight,lines,height:labelFont*1.3+7+lines.length*lineHeight+(section.type==='usage'?12:0)};
+    });
+    chosen={title,rows};
   }
-
-
-  // TARGETS
-  if (cleanText(targetPests)) {
-
-    const targetX =
-      layout.leftX +
-      p +
-      infoW +
-      infoGap;
-
-    const result =
-      labelValue(
-        'TARGETS',
-        targetPests,
-        targetX,
-        y,
-        infoW,
-        {
-          label: titleColor,
-          value: textColor,
-        },
-        {
-          labelSize: 13,
-          valueSize: detailSize,
-          maxLines: 2,
-          gap: 21,
-          lineHeight:
-            Math.round(
-              detailSize * 1.28
-            ),
-        }
-      );
-
-    svg += result.svg;
+  let svg=`<rect x="${layout.leftX}" y="${top}" width="${layout.leftW}" height="${layout.contentH}" rx="28" fill="${colors.panel}" stroke="${border}" stroke-width="2"/>`;
+  svg+=`<rect x="${layout.rightX}" y="${top}" width="${layout.rightW}" height="${layout.contentH}" rx="28" fill="#FFFFFF" stroke="${border}" stroke-width="2"/><rect x="${layout.rightX}" y="${top}" width="9" height="${layout.contentH}" rx="4" fill="${theme}"/>`;
+  // Price is deliberately on the PRODUCT IMAGE side, above the product.
+  const badgeText=cleanText(price) || cleanText(promoText);
+  if(badgeText){
+    const bw=Math.min(layout.rightW-45,360), bx=layout.rightX+(layout.rightW-bw)/2, by=top+20;
+    const badge=fittedText(badgeText,bw-28,2,22,13);
+    svg+=`<rect x="${bx}" y="${by}" width="${bw}" height="65" rx="25" fill="${theme}"/>`;
+    svg+=renderLines(badge.lines,bx+bw/2,by+32-(badge.lines.length-1)*badge.size*.47,badge.size,'#FFFFFF',{weight:900,anchor:'middle',lineHeight:badge.size*1.1});
   }
-
-
-  // Advance after information row
-  y +=
-    Math.round(
-      detailSize * 1.28 * 2
-    ) +
-    32;
-
-
-  // ====================================================
-  // CROPS
-  // ====================================================
-
-  if (cleanText(crops)) {
-
-    const result =
-      labelValue(
-        'CROPS',
-        crops,
-        layout.leftX + p,
-        y,
-        detailWidth,
-        {
-          label: titleColor,
-          value: textColor,
-        },
-        {
-          labelSize: 13,
-          valueSize: detailSize,
-          maxLines: 2,
-          gap: 21,
-          lineHeight:
-            Math.round(
-              detailSize * 1.28
-            ),
-        }
-      );
-
-    svg += result.svg;
-
-    y += result.height + 14;
+  let y=top+25;
+  svg+=renderLines(chosen.title.lines,x,y+chosen.title.size,chosen.title.size,titleColor,{weight:900,lineHeight:chosen.title.size*1.12,family:'Trebuchet MS, Arial, sans-serif'});
+  y+=chosen.title.lines.length*chosen.title.size*1.12+17;
+  for(const row of chosen.rows){
+    if(y+row.height>bottom) break;
+    if(row.type==='usage') svg+=`<rect x="${x-7}" y="${y-6}" width="${w+14}" height="${row.height+7}" rx="13" fill="${colors.accentSoft}" stroke="${theme}" stroke-opacity="0.25"/>`;
+    const inset=row.type==='usage'?8:0;
+    svg+=renderLines([row.label],x+inset,y+row.labelFont,row.labelFont,labelColor,{weight:900});
+    const lineY=y+row.labelFont*1.3+7+row.font;
+    row.lines.forEach((line,i)=>{
+      if(row.type==='advantages' && line.bullet) svg+=`<circle cx="${x+6}" cy="${lineY+i*row.lineHeight-row.font*.32}" r="3.5" fill="${theme}"/>`;
+      svg+=renderLines([line.text],x+inset+(row.type==='advantages'?19:0),lineY+i*row.lineHeight,row.font,textColor,{weight:row.type==='description'?500:650});
+    });
+    y+=row.height+9;
   }
-
-
-  // ====================================================
-  // USAGE / MIXING BOX
-  // ====================================================
-
-  if (cleanText(usage)) {
-
-    const usageBoxY = y;
-
-    const usageBoxH =
-      Math.min(
-        190,
-        Math.max(
-          135,
-          layout.contentY +
-          layout.contentH -
-          usageBoxY -
-          35
-        )
-      );
-
-    svg += `
-      <rect
-        x="${layout.leftX + p - 8}"
-        y="${usageBoxY - 12}"
-        width="${detailWidth + 16}"
-        height="${usageBoxH}"
-        rx="20"
-        fill="${colors.accentSoft}"
-        stroke="${colors.accent}"
-        stroke-opacity="0.20"
-        stroke-width="2"
-      />
-
-      <text
-        x="${layout.leftX + p + 10}"
-        y="${usageBoxY + 20}"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="14px"
-        font-weight="900"
-        fill="${titleColor}"
-        letter-spacing="1px"
-      >
-        USAGE / MIXING
-      </text>
-    `;
-
-
-    svg += textBlock(
-      usage,
-      layout.leftX + p + 10,
-      usageBoxY + 54,
-      detailWidth - 20,
-      20,
-      textColor,
-      {
-        weight: '600',
-        maxLines: 5,
-        lineHeight: 27,
-      }
-    );
-  }
-
-
-  // ====================================================
-  // PROMOTION BADGE
-  // ====================================================
-
-  if (promoText) {
-
-    const promoW =
-      Math.min(
-        300,
-        layout.leftW * 0.55
-      );
-
-    const promoH = 82;
-
-    const promoX =
-      layout.leftX +
-      layout.leftW -
-      promoW -
-      22;
-
-    const promoY =
-      layout.contentY +
-      20;
-
-
-    svg += `
-      <rect
-        x="${promoX}"
-        y="${promoY}"
-        width="${promoW}"
-        height="${promoH}"
-        rx="41"
-        fill="${theme}"
-        filter="url(#shadow)"
-      />
-
-      <circle
-        cx="${promoX + 39}"
-        cy="${promoY + 41}"
-        r="23"
-        fill="#FFFFFF"
-        opacity="0.18"
-      />
-    `;
-
-
-    svg += textBlock(
-      promoText,
-      promoX + 72,
-      promoY + 48,
-      promoW - 90,
-      20,
-      '#FFFFFF',
-      {
-        weight: '900',
-        maxLines: 2,
-        lineHeight: 23,
-      }
-    );
-  }
-
-
   return svg;
 }
 
@@ -1748,6 +1170,8 @@ router.post(
         crops,
         usage,
         promoText,
+        price,
+        advantages,
 
         template,
         size,
@@ -1938,6 +1362,8 @@ router.post(
 
           promoText:
             cleanText(promoText),
+          price: cleanText(price),
+          advantages,
         },
         finalThemeColor
       );
@@ -2128,13 +1554,13 @@ router.post(
             layout.rightX + 18;
 
           const imageAreaY =
-            layout.contentY + 18;
+            layout.contentY + (cleanText(price) || cleanText(promoText) ? 100 : 18);
 
           const imageAreaW =
             layout.rightW - 36;
 
           const imageAreaH =
-            layout.contentH - 36;
+            layout.contentH - (cleanText(price) || cleanText(promoText) ? 118 : 36);
 
 
           // ------------------------------------------------
