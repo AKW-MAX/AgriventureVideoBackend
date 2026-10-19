@@ -1072,29 +1072,29 @@ function drawContent(width, height, layout, template, colors, fields, theme) {
   for (let scale=1; scale>=0.50; scale-=0.025) {
     const titleFont=Math.round((height>=1800?47:41)*scale);
     const title=fittedText(productName,w,3,titleFont,Math.max(16,titleFont-2));
-    const font=Math.max(11,Math.round((height>=1800?21:19)*scale));
-    const labelFont=Math.max(10,Math.round(13*scale));
+    const font=Math.max(15,Math.round((height>=1800?27:25)*scale));
+    const labelFont=Math.max(13,Math.round(17*scale));
     const rows=sections.map(section=>{
       const lineHeight=font*1.2;
       const lines=section.type==='advantages'
         ? section.value.map(v=>wrapText(v,w-24,font)).flatMap((ls,i)=>ls.map((line,j)=>({text:line,bullet:j===0})))
         : wrapText(section.value,w-(section.type==='usage'?20:0),font).map(text=>({text,bullet:false}));
-      return {...section,font,labelFont,lines,lineHeight,height:labelFont*1.3+7+lines.length*lineHeight+(section.type==='usage'?19:0)};
+      return {...section,font,labelFont,lines,lineHeight,height:labelFont*1.3+10+lines.length*lineHeight+(section.type==='usage'?19:0)};
     });
-    const total=25+title.lines.length*title.size*1.12+17+rows.reduce((n,r)=>n+r.height+9,0)+10;
+    const total=25+title.lines.length*title.size*1.12+20+rows.reduce((n,r)=>n+r.height+17,0)+10;
     if(total<=layout.contentH-15){chosen={title,rows};break;}
   }
   if(!chosen){
-    const title=fittedText(productName,w,2,21,16),font=11,labelFont=10,lineHeight=13;
+    const title=fittedText(productName,w,2,21,16),font=15,labelFont=13,lineHeight=18;
     const available=layout.contentH-25-title.lines.length*title.size*1.12-35;
-    const each=Math.max(25,(available-sections.length*9)/Math.max(1,sections.length));
+    const each=Math.max(25,(available-sections.length*17)/Math.max(1,sections.length));
     const rows=sections.map(section=>{
       const raw=section.type==='advantages'
         ? section.value.flatMap(v=>wrapText(v,w-24,font).map((text,i)=>({text,bullet:i===0})))
         : wrapText(section.value,w-20,font).map(text=>({text,bullet:false}));
-      const count=Math.max(1,Math.floor((each-22-(section.type==='usage'?12:0))/lineHeight));
+      const count=Math.max(1,Math.floor((each-25-(section.type==='usage'?12:0))/lineHeight));
       const lines=raw.slice(0,count);
-      return {...section,font,labelFont,lineHeight,lines,height:labelFont*1.3+7+lines.length*lineHeight+(section.type==='usage'?12:0)};
+      return {...section,font,labelFont,lineHeight,lines,height:labelFont*1.3+10+lines.length*lineHeight+(section.type==='usage'?12:0)};
     });
     chosen={title,rows};
   }
@@ -1104,24 +1104,24 @@ function drawContent(width, height, layout, template, colors, fields, theme) {
   const badgeText=cleanText(price) || cleanText(promoText);
   if(badgeText){
     const bw=Math.min(layout.rightW-45,360), bx=layout.rightX+(layout.rightW-bw)/2, by=top+20;
-    const badge=fittedText(badgeText,bw-28,2,22,13);
-    svg+=`<rect x="${bx}" y="${by}" width="${bw}" height="65" rx="25" fill="${theme}"/>`;
-    svg+=renderLines(badge.lines,bx+bw/2,by+32-(badge.lines.length-1)*badge.size*.47,badge.size,'#FFFFFF',{weight:900,anchor:'middle',lineHeight:badge.size*1.1});
+    const badge=fittedText(badgeText,bw-28,2,25,15);
+    svg+=`<rect x="${bx}" y="${by}" width="${bw}" height="72" rx="25" fill="${theme}"/>`;
+    svg+=renderLines(badge.lines,bx+bw/2,by+36-(badge.lines.length-1)*badge.size*.47,badge.size,'#FFFFFF',{weight:900,anchor:'middle',lineHeight:badge.size*1.1});
   }
   let y=top+25;
   svg+=renderLines(chosen.title.lines,x,y+chosen.title.size,chosen.title.size,titleColor,{weight:900,lineHeight:chosen.title.size*1.12,family:'Trebuchet MS, Arial, sans-serif'});
-  y+=chosen.title.lines.length*chosen.title.size*1.12+17;
+  y+=chosen.title.lines.length*chosen.title.size*1.12+20;
   for(const row of chosen.rows){
     if(y+row.height>bottom) break;
     if(row.type==='usage') svg+=`<rect x="${x-7}" y="${y-6}" width="${w+14}" height="${row.height+7}" rx="13" fill="${colors.accentSoft}" stroke="${theme}" stroke-opacity="0.25"/>`;
     const inset=row.type==='usage'?8:0;
     svg+=renderLines([row.label],x+inset,y+row.labelFont,row.labelFont,labelColor,{weight:900});
-    const lineY=y+row.labelFont*1.3+7+row.font;
+    const lineY=y+row.labelFont*1.3+10+row.font;
     row.lines.forEach((line,i)=>{
       if(row.type==='advantages' && line.bullet) svg+=`<circle cx="${x+6}" cy="${lineY+i*row.lineHeight-row.font*.32}" r="3.5" fill="${theme}"/>`;
       svg+=renderLines([line.text],x+inset+(row.type==='advantages'?19:0),lineY+i*row.lineHeight,row.font,textColor,{weight:row.type==='description'?500:650});
     });
-    y+=row.height+9;
+    y+=row.height+17;
   }
   return svg;
 }
@@ -1481,12 +1481,15 @@ router.post(
       // LOGO
       // ==================================================
 
-      // An uploaded logo takes precedence. Otherwise use the bundled
-      // Agriventure Enterprises logo from backend/assets/agriventure-logo.png.
+      // An uploaded logo takes precedence; the fallback file is optional.
       const defaultLogoPath = path.join(__dirname, '..', 'assets', 'agriventure-logo.png');
-      const logoBuffer = dataUriToBuffer(logo) ||
+      const uploadedLogoBuffer = dataUriToBuffer(logo);
+      if (logo && !uploadedLogoBuffer) {
+        throw new Error('The uploaded logo could not be decoded. Please select the logo again.');
+      }
+      const logoBuffer = uploadedLogoBuffer ||
         (fs.existsSync(defaultLogoPath) ? fs.readFileSync(defaultLogoPath) : null);
-      if (!logoBuffer) console.warn('Poster logo missing: supply Base64 logo or add', defaultLogoPath);
+      if (!logoBuffer) console.warn('Poster logo missing: upload a logo or add the fallback file at', defaultLogoPath);
 
 
       if (logoBuffer) {
@@ -1535,10 +1538,8 @@ router.post(
 
         } catch (error) {
 
-          console.log(
-            '⚠️ Logo processing failed:',
-            error.message
-          );
+          console.error('Logo processing failed:', error);
+          throw error;
         }
       }
 
@@ -1565,13 +1566,13 @@ router.post(
             layout.rightX + 18;
 
           const imageAreaY =
-            layout.contentY + (cleanText(price) || cleanText(promoText) ? 100 : 18);
+            layout.contentY + (cleanText(price) || cleanText(promoText) ? 108 : 18);
 
           const imageAreaW =
             layout.rightW - 36;
 
           const imageAreaH =
-            layout.contentH - (cleanText(price) || cleanText(promoText) ? 118 : 36);
+            layout.contentH - (cleanText(price) || cleanText(promoText) ? 126 : 36);
 
 
           // ------------------------------------------------
