@@ -12,6 +12,8 @@ require('dotenv').config();
 const posterRoutes = require('./routes/poster');
 const characterRoutes = require('./routes/character');
 const videoRoutes = require('./routes/video');
+const slideRoutes = require('./routes/slides');
+const composerRoutes = require('./routes/composer');
 
 // ======================================================
 // APP
@@ -462,6 +464,28 @@ console.log(
 
 console.log(
   '==========================================');
+
+// ======================================================
+// SLIDESHOW API
+// ======================================================
+
+app.use(
+  '/api/slides',
+  slideRoutes
+);
+
+console.log('Slideshow API mounted at: /api/slides');
+
+// ======================================================
+// BEAT AND MELODY COMPOSER API
+// ======================================================
+
+app.use(
+  '/api/composer',
+  composerRoutes
+);
+
+console.log('Music composer API mounted at: /api/composer');
 
 // ======================================================
 // ROOT TEST
